@@ -4,9 +4,9 @@ import json
 from typing import Any
 
 from ..base import BaseAgent
-from ..schemas import NarrativeStrategyOutput
-from .prompt import SYSTEM_PROMPT
 from ..tools import tinyfish_web_search
+from .prompt import SYSTEM_PROMPT
+from .schema import NarrativeStrategyOutput
 
 
 class NarrativeStrategistAgent(BaseAgent):

@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseAgent
-from ..schemas import ProductAnalysisOutput
-from ..utils import image_to_data_url
 from ..tools import tinyfish_web_search
+from ..utils import image_to_data_url
 from .prompt import SYSTEM_PROMPT
+from .schema import ProductAnalysisOutput
 
 
 class ProductAnalysisAgent(BaseAgent):

@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseAgent
-from ..schemas import StoryboardOutput
 from ..tools import tinyfish_web_search
 from .prompt import SYSTEM_PROMPT
+from .schema import StoryboardOutput
 
 
 class StoryboardAgent(BaseAgent):
