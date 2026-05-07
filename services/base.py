@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from clients import LLMClient
 from pydantic import BaseModel, ValidationError
+
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceRunError(RuntimeError):
@@ -40,8 +44,7 @@ class BasePromptService:
             {
                 "role": "user",
                 "content": (
-                    "Create structured JSON for this brief. Return only JSON, "
-                    "with no markdown or prose.\n"
+                    "Create structured JSON for this brief. Return only JSON, with no markdown or prose.\n"
                     f"{json.dumps(user_payload, indent=2)}"
                 ),
             },

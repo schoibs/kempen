@@ -32,28 +32,29 @@ class CampaignInput:
 class CampaignAgentPipeline:
     """Run campaign planning agents, then generate image and video prompts."""
 
-    def __init__(
-        self,
-        campaign_input: CampaignInput,
-    ) -> None:
+    def __init__(self, campaign_input: CampaignInput) -> None:
         self.campaign_input = campaign_input
         self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
         self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
         self.storyboard_agent = StoryboardAgent(model="gpt-5.4-mini")
         self.image_prompt_service = ImagePromptGeneratorService(
-            llm_client = LLMClient(model="gpt-5.4-mini")
+            llm_client = LLMClient(model="deepseek-v4-pro")
         )
         self.video_prompt_service = VideoPromptGeneratorService(
             llm_client = LLMClient(model="gpt-5.4-mini")
         )
 
     def run(self) -> dict[str, Any]:
-
+        logger.info("Pipeline initialized...")
         campaign_input = self.campaign_input
+
+        logger.info("Campaign inputs: %s", campaign_input)
 
         product_analysis = self.product_agent.run(
             product_image_path=campaign_input.product_image_path
         )
+
+        logger.info(f"{product_analysis=}")
 
         narrative_strategy = self.narrative_agent.run(
             product_analysis=product_analysis,
@@ -61,6 +62,8 @@ class CampaignAgentPipeline:
             target_duration_sec=campaign_input.target_duration_sec,
             target_audience=campaign_input.target_audience,
         )
+
+        logger.info(f"{narrative_strategy=}")
 
         # Generate storyboard
         storyboard = self.storyboard_agent.run(
@@ -71,6 +74,10 @@ class CampaignAgentPipeline:
             aspect_ratio=campaign_input.aspect_ratio,
         )
 
+        logger.info(f"{storyboard=}")
+
+        
+
         # Given the storyboard, generate the prompt needed for the starting images
         image_prompts = self.image_prompt_service.run(
             storyboard=storyboard,
@@ -79,6 +86,8 @@ class CampaignAgentPipeline:
             product_image_path=campaign_input.product_image_path,
         )
 
+        logger.info(f"{image_prompts=}")
+
         # Given the storyboard, generate the prompt needed for the scenes
         video_prompts = self.video_prompt_service.run(
             storyboard=storyboard,
@@ -86,6 +95,7 @@ class CampaignAgentPipeline:
             narrative_strategy=narrative_strategy,
         )
 
+        logger.info(f"{video_prompts=}")
         return {
             "input": campaign_input.to_dict(),
             "product_analysis": product_analysis,
@@ -101,9 +111,9 @@ if __name__ == "__main__":
 
     pipeline = CampaignAgentPipeline(
         campaign_input=CampaignInput(
-            product_image_path="",
-            campaign_theme="",
-            target_audience="",
+            product_image_path="assets/prime.png",
+            campaign_theme="bright, sunny and fun",
+            target_audience="young adults who love summer festivals, beach parties and clubs",
         )
     )
     pipeline.run()

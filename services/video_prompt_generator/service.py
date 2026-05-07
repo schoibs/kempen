@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import mimetypes
+import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +16,9 @@ from ..utils import (
 )
 from .prompt import SYSTEM_PROMPT
 from .schema import VideoPromptGeneratorOutput
+
+
+logger = logging.getLogger(__name__)
 
 
 class VideoPromptGeneratorService(BasePromptService):
@@ -34,6 +38,8 @@ class VideoPromptGeneratorService(BasePromptService):
         start_image_urls_by_scene_id: dict[str, str] | None = None,
         start_image_paths_by_scene_id: dict[str, str] | None = None,
     ) -> dict[str, Any]:
+        return {'video_prompts': [{'scene_id': 'scene_01', 'prompt': 'Create a 5-second premium product hero video from the provided start image. Keep the tall plastic bottle perfectly centered in a vertical frame with generous white space around it. Use a very subtle slow push-in only, with no rotation or tilt. The bottle must remain completely still and sharply in focus. Preserve the exact bottle design, yellow cap, yellow lemonade body, and all visible label text exactly as shown. Maintain a clean pure white studio background with no props, no scenery, no extra objects, and no added branding. Lighting should feel crisp, high-contrast, minimal, and premium, with a bright sunny product-ad look. Pace should be slow and confident, ending as a clean hero hold that feels like an elegant reveal.', 'negative_prompt': 'Do not change the bottle shape, cap color, label layout, or any visible text. No extra logos, no extra products, no hands, no people, no condensation changes, no warped packaging, no unreadable label, no background texture, no shadows that clutter the scene, no color shifts, no rotation, no dramatic camera shake, no zoom burst, no scene clutter, no text overlays, no subtitles, no dialogue visuals.'}, {'scene_id': 'scene_02', 'prompt': 'Create a 5-second clean macro-style product showcase from the provided start image. Begin with a medium-close centered view of the bottle and slowly push in toward the label area, keeping the product perfectly stable and fully recognizable. Continue into a tighter close-up while still preserving enough of the full bottle shape to maintain brand recognition. The camera motion should be smooth, measured, and polished, with no rotation or wobble. Keep the background pure white and static. Emphasize the bright yellow color and the label clarity, while preserving the exact bottle design, yellow cap, and all visible text exactly as shown. Maintain premium studio lighting, crisp focus, and a fresh, minimal ad aesthetic throughout.', 'negative_prompt': 'Do not alter the bottle color, cap color, label text, or packaging proportions. No extra objects, no props, no scenery, no hands, no people, no reflections that obscure the label, no warped or unreadable text, no added logos, no new flavors, no liquid motion, no condensation effects, no background movement, no camera shake, no dramatic parallax, no overlays, no subtitles, no dialogue visuals.'}, {'scene_id': 'scene_03', 'prompt': 'Create a 5-second premium social ad end-card video from the provided start image. Return to a full centered hero view of the bottle with the label and yellow body clearly visible. Use a very subtle pull-back to restore breathing room around the product, then hold static for the final CTA beat. The bottle must remain fixed, centered, and sharply in focus. Preserve the exact visible text and packaging details exactly as shown, including LEMONADE, FLAVOUR, PRIME, HYDRATION, and 500 mL. Keep the background pure white, minimal, and free of any additional objects or scenery. The finish should feel clean, confident, and slightly elevated in energy, ending with a simple fade to white.', 'negative_prompt': 'Do not change any visible text, label layout, bottle shape, cap color, or product color. No extra logos, no extra products, no people, no hands, no props, no scenery, no background texture, no clutter, no warped packaging, no unreadable label, no new claims, no motion blur, no camera shake, no rotation, no overlays that cover the bottle, no subtitles, no dialogue visuals.'}]}
+
         scene_briefs, video_settings_by_scene_id = self._scene_briefs(
             storyboard=storyboard,
             start_image_inputs_by_scene_id=(
@@ -45,15 +51,6 @@ class VideoPromptGeneratorService(BasePromptService):
         expected_scene_ids = set(video_settings_by_scene_id)
         payload = {
             "service_goal": "Generate Kling image-to-video prompts for storyboard scenes.",
-            "product_analysis": model_to_dict(product_analysis),
-            "narrative_strategy": model_to_dict(narrative_strategy) if narrative_strategy else None,
-            "output_requirements": {
-                "provider": "fal_kling",
-                "endpoint": "fal-ai/kling-video/v3/standard/image-to-video",
-                "cfg_scale": 0.5,
-                "use_start_image_url": True,
-                "one_prompt_per_scene": True,
-            },
             "scenes": scene_briefs,
         }
 
@@ -62,15 +59,6 @@ class VideoPromptGeneratorService(BasePromptService):
             actual_scene_ids={item.scene_id for item in output.video_prompts},
             expected_scene_ids=expected_scene_ids,
         )
-
-        for item in output.video_prompts:
-            settings = video_settings_by_scene_id[item.scene_id]
-            item.provider = "fal_kling"
-            item.endpoint = "fal-ai/kling-video/v3/standard/image-to-video"
-            item.start_image_url = settings["start_image_url"]
-            item.duration = settings["duration"]
-            item.generate_audio = settings["generate_audio"]
-            item.cfg_scale = 0.5
 
         return output.model_dump(mode="json", by_alias=True)
 

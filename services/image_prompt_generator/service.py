@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from ..base import BasePromptService, ServiceRunError
@@ -11,6 +12,9 @@ from ..utils import (
 )
 from .prompt import SYSTEM_PROMPT
 from .schema import ImagePromptGeneratorOutput
+
+
+logger = logging.getLogger(__name__)
 
 
 class ImagePromptGeneratorService(BasePromptService):
@@ -29,6 +33,9 @@ class ImagePromptGeneratorService(BasePromptService):
         narrative_strategy: dict[str, Any] | None = None,
         product_image_path: str | None = None,
     ) -> dict[str, Any]:
+        return {'image_prompts': [{'scene_id': 'scene_01', 'reference_image_path': 'assets/prime.png', 'prompt': "A 9:16 commercial product shot of the PRIME Hydration Lemonade bottle centered on a pure white background. The tall plastic bottle has a bright yellow label with visible text: 'PRIME', 'HYDRATION', 'LEMONADE', 'FLAVOUR', and '500 mL'. The cap is yellow. Crisp studio lighting, high contrast, minimal premium product ad style. No other objects, text overlays, or backgrounds."}, {'scene_id': 'scene_02', 'reference_image_path': 'assets/prime.png', 'prompt': "A closer 9:16 product shot of the same PRIME Hydration Lemonade bottle, still centered on pure white. The frame emphasizes the label area, making the 'LEMONADE' branding and PRIME wordmark clearly visible. The label colors, cap, and all text remain exactly as in the reference. Crisp macro-style studio lighting, no additional objects, pure white background."}, {'scene_id': 'scene_03', 'reference_image_path': 'assets/prime.png', 'prompt': "A 9:16 full-frame hero shot of the PRIME Hydration Lemonade bottle centered on pure white. The composition is exactly like the reference, with all label details preserved: 'LEMONADE', 'FLAVOUR', 'PRIME', 'HYDRATION', '500 mL', and yellow cap. Premium social ad end card style, strong product clarity, clean white background. No text overlay included in the image generation."}]}
+
+
         scene_briefs, reference_paths_by_scene_id = self._scene_briefs(
             storyboard=storyboard,
             product_image_path=product_image_path,
@@ -36,15 +43,6 @@ class ImagePromptGeneratorService(BasePromptService):
         expected_scene_ids = set(reference_paths_by_scene_id)
         payload = {
             "service_goal": "Generate image edit prompts for storyboard start frames.",
-            "product_analysis": model_to_dict(product_analysis),
-            "narrative_strategy": model_to_dict(narrative_strategy) if narrative_strategy else None,
-            "output_requirements": {
-                "model": "gpt-image-2",
-                "mode": "edit_with_reference",
-                "size": "1080x1920",
-                "quality": "high",
-                "one_prompt_per_scene": True,
-            },
             "scenes": scene_briefs,
         }
 
@@ -55,11 +53,7 @@ class ImagePromptGeneratorService(BasePromptService):
         )
 
         for item in output.image_prompts:
-            item.model = "gpt-image-2"
-            item.mode = "edit_with_reference"
             item.reference_image_path = reference_paths_by_scene_id[item.scene_id]
-            item.size = "1080x1920"
-            item.quality = "high"
 
         return output.model_dump(mode="json", by_alias=True)
 

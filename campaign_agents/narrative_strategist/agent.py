@@ -26,6 +26,8 @@ class NarrativeStrategistAgent(BaseAgent):
         target_duration_sec: int = 15,
         research_context: str | list[str] | None = None,
     ) -> dict[str, Any]:
+        return {'concept_title': 'Sun-Soaked Energy Drop', 'hook': 'A single bottle, center frame, that looks like summer in one glance.', 'message': 'Keep the visual dead simple and high-impact: the bright yellow PRIME Hydration Lemonade bottle stays perfectly centered on a clean white background, letting the color do the talking. The narrative should feel like a quick burst of sunny festival energy—fresh, playful, and ready for beach days, late nights, and everything in between. Since the product itself is the hero, the strategy is to frame it as the visual equivalent of a summer mood: bold, crisp, and instantly recognizable. No extra props or scenery—just a clean product spotlight that feels premium, upbeat, and made for young adults chasing fun.', 'tone': ['bright', 'sunny', 'fun', 'youthful', 'clean', 'premium', 'energetic'], 'cta': 'Spot the yellow. Grab the vibe.'}
+
         brief = {
             "product_analysis": product_analysis,
             "campaign_theme": campaign_theme,
