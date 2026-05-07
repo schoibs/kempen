@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from ..base import BaseAgent
-from ..schemas import NARRATIVE_STRATEGY_SCHEMA
+from ..schemas import NarrativeStrategyOutput
 from .prompt import SYSTEM_PROMPT
 
 
@@ -12,8 +12,7 @@ class NarrativeStrategistAgent(BaseAgent):
     """Create the campaign concept from product analysis and campaign inputs."""
 
     name = "narrative_strategist_agent"
-    schema_name = "narrative_strategy"
-    output_schema = NARRATIVE_STRATEGY_SCHEMA
+    output_type = NarrativeStrategyOutput
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.5
 
@@ -33,7 +32,6 @@ class NarrativeStrategistAgent(BaseAgent):
             "research_context": research_context or "No external research context supplied.",
         }
 
-        return self._call_json(
-            user_content = f"Create the campaign narrative strategy from this brief:\n {json.dumps(brief, indent=2)}",
-            temperature=0.5,
+        return self._run_sdk(
+            user_input=f"Create the campaign narrative strategy from this brief:\n{json.dumps(brief, indent=2)}"
         )

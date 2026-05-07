@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseAgent
-from ..schemas import STORYBOARD_SCHEMA
+from ..schemas import StoryboardOutput
 from .prompt import SYSTEM_PROMPT
 
 
@@ -13,8 +13,7 @@ class StoryboardAgent(BaseAgent):
     """Plan video scenes and shot sequences from a narrative strategy."""
 
     name = "storyboard_agent"
-    schema_name = "campaign_storyboard"
-    output_schema = STORYBOARD_SCHEMA
+    output_type = StoryboardOutput
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.4
 
@@ -42,7 +41,6 @@ class StoryboardAgent(BaseAgent):
                 "explicitly needed."
             ),
         }
-        return self._call_json(
-            user_content=f"Create the storyboard from this brief:\n {json.dumps(storyboard_brief, indent=2)}",
-            temperature=0.4,
+        return self._run_sdk(
+            user_input=f"Create the storyboard from this brief:\n {json.dumps(storyboard_brief, indent=2)}"
         )
