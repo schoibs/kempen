@@ -8,8 +8,6 @@ from agents import Agent as OpenAIAgent
 from agents import ModelSettings, Runner
 from pydantic import BaseModel
 
-from .tools import tinyfish_web_search
-
 
 class AgentRunError(RuntimeError):
     """Raised when an agent cannot produce usable structured output."""
@@ -21,6 +19,7 @@ class BaseAgent(ABC):
     name = "base_agent"
     output_type: type[BaseModel] | None = None
     system_prompt = ""
+    tools: list[Any] | None = None,
     default_temperature = 0.3
     default_max_turns = 4
 
@@ -28,14 +27,12 @@ class BaseAgent(ABC):
         self,
         *,
         model: str | None = None,
-        tools: list[Any] | None = None,
         max_turns: int | None = None,
     ) -> None:
         if self.output_type is None:
             raise TypeError(f"{type(self).__name__} must define output_type.")
 
         self.model = model or os.getenv("OPENAI_DEFAULT_MODEL")
-        self.tools = tools if tools is not None else [tinyfish_web_search]
         self.max_turns = max_turns or self.default_max_turns
         self.sdk_agent = self._build_sdk_agent()
 

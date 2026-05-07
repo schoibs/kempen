@@ -6,6 +6,7 @@ from typing import Any
 
 from ..base import BaseAgent
 from ..schemas import StoryboardOutput
+from ..tools import tinyfish_web_search
 from .prompt import SYSTEM_PROMPT
 
 
@@ -14,6 +15,7 @@ class StoryboardAgent(BaseAgent):
 
     name = "storyboard_agent"
     output_type = StoryboardOutput
+    tools = [tinyfish_web_search]
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.4
 

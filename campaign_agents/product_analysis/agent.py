@@ -6,6 +6,7 @@ from typing import Any
 from ..base import BaseAgent
 from ..schemas import ProductAnalysisOutput
 from ..utils import image_to_data_url
+from ..tools import tinyfish_web_search
 from .prompt import SYSTEM_PROMPT
 
 
@@ -14,6 +15,7 @@ class ProductAnalysisAgent(BaseAgent):
 
     name = "product_analysis_agent"
     output_type = ProductAnalysisOutput
+    tools = [tinyfish_web_search]
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.1
 
