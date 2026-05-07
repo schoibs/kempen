@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from dataclasses import asdict, dataclass
 from dotenv import load_dotenv
-
 from typing import Any
 
+from logging_config import configure_logging 
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
 from campaign_agents import StoryboardAgent
 from clients import LLMClient
@@ -12,6 +14,7 @@ from services import ImagePromptGeneratorService, VideoPromptGeneratorService
 
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,8 @@ class CampaignAgentPipeline:
 
 
 if __name__ == "__main__":
+    configure_logging()
+
     pipeline = CampaignAgentPipeline(
         campaign_input=CampaignInput(
             product_image_path="",
