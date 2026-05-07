@@ -21,8 +21,8 @@ class NarrativeStrategistAgent(BaseAgent):
         self,
         product_analysis: dict[str, Any],
         campaign_theme: str,
+        target_audience: str,
         target_duration_sec: int = 15,
-        target_audience: str = "general social audience",
         research_context: str | list[str] | None = None,
     ) -> dict[str, Any]:
         brief = {

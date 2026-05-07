@@ -36,7 +36,7 @@ class StoryboardAgent(BaseAgent):
             "aspect_ratio": aspect_ratio,
             "generate_audio": generate_audio,
             "scene_guidance": (
-                "For a 15 second MVP, prefer exactly three 5 second scenes. "
+                "Ensure that the total durations of all scenes add up to the target_duration_sec value."
                 "Use the provided product image path as the reference image path "
                 "for starting images unless a later generated start frame is "
                 "explicitly needed."

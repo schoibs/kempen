@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import requests
@@ -20,7 +20,7 @@ class LLMClient:
     api_key: str = os.getenv("LLM_API_KEY")
     model: str = os.getenv("LLM_MODEL", "gpt-5.4-mini")
     timeout: float = float(os.getenv("OPENAI_TIMEOUT", "120"))
-    extra_headers: dict[str, str] = {}
+    extra_headers: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.api_key or not self.base_url:
