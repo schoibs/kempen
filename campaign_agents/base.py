@@ -19,7 +19,7 @@ class BaseAgent(ABC):
     name = "base_agent"
     output_type: type[BaseModel] | None = None
     system_prompt = ""
-    tools: list[Any] | None = None,
+    tools: list[Any] | None = None
     default_temperature = 0.3
     default_max_turns = 4
 

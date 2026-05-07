@@ -10,23 +10,23 @@ class TinyFishSearchError(RuntimeError):
     """Raised when TinyFish web search cannot be executed."""
 
 
-def search_web(
+@function_tool
+def tinyfish_web_search(
     query: str,
-    *,
     max_results: int = 5,
     location: str = "US",
     language: str = "en",
     page: int = 0,
-    client: Any | None = None,
 ) -> dict[str, Any]:
-    """Search the web with TinyFish and return compact ranked results."""
+    """Search the web for current public information using TinyFish Search API."""
+    
     normalized_query = query.strip()
     if not normalized_query:
         raise ValueError("query must not be empty.")
     if max_results < 1:
         raise ValueError("max_results must be at least 1.")
 
-    search_client = client or _build_tinyfish_client()
+    search_client = _build_tinyfish_client()
     response = search_client.search.query(
         query=normalized_query,
         location=location,
@@ -40,24 +40,6 @@ def search_web(
         "results": results[:max_results],
         "total_results": _get(response, "total_results", len(results)),
     }
-
-
-@function_tool
-def tinyfish_web_search(
-    query: str,
-    max_results: int = 5,
-    location: str = "US",
-    language: str = "en",
-    page: int = 0,
-) -> dict[str, Any]:
-    """Search the web for current public information using TinyFish Search API."""
-    return search_web(
-        query=query,
-        max_results=max_results,
-        location=location,
-        language=language,
-        page=page,
-    )
 
 
 def _build_tinyfish_client() -> Any:
