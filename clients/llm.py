@@ -15,17 +15,16 @@ class LLMClientError(RuntimeError):
 class LLMClient:
     """Chat Completions client for OpenAI-compatible endpoints.
     """
-
+    model: str
     base_url: str | None = None
     api_key: str | None = None
-    model: str | None = None
     timeout: float | None = 120
     extra_headers: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.base_url = self.base_url or os.getenv("LLM_BASE_URL")
         self.api_key = self.api_key or os.getenv("LLM_API_KEY")
-        self.model = self.model or os.getenv("LLM_MODEL", "gpt-5.4-mini")
+        self.model = self.model
         
         if not self.api_key or not self.base_url:
             raise ValueError("Both api_key and base_url are required for LLMClient.")

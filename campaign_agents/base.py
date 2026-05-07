@@ -26,13 +26,13 @@ class BaseAgent(ABC):
     def __init__(
         self,
         *,
-        model: str | None = None,
+        model: str,
         max_turns: int | None = None,
     ) -> None:
         if self.output_type is None:
             raise TypeError(f"{type(self).__name__} must define output_type.")
 
-        self.model = model or os.getenv("OPENAI_DEFAULT_MODEL")
+        self.model = model
         self.max_turns = max_turns or self.default_max_turns
         self.sdk_agent = self._build_sdk_agent()
 

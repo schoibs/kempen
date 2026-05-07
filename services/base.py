@@ -23,14 +23,14 @@ class BasePromptService:
     def __init__(
         self,
         *,
-        llm_client: LLMClient | None = None,
+        llm_client: LLMClient,
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> None:
         if self.output_type is None:
             raise TypeError(f"{type(self).__name__} must define output_type.")
 
-        self.llm_client = llm_client or LLMClient()
+        self.llm_client = llm_client
         self.temperature = self.default_temperature if temperature is None else temperature
         self.max_tokens = max_tokens or self.default_max_tokens
 

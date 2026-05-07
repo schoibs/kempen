@@ -7,6 +7,7 @@ from typing import Any
 
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
 from campaign_agents import StoryboardAgent
+from clients import LLMClient
 from services import ImagePromptGeneratorService, VideoPromptGeneratorService
 
 
@@ -33,11 +34,15 @@ class CampaignAgentPipeline:
         campaign_input: CampaignInput,
     ) -> None:
         self.campaign_input = campaign_input
-        self.product_agent = ProductAnalysisAgent()
-        self.narrative_agent = NarrativeStrategistAgent()
-        self.storyboard_agent = StoryboardAgent()
-        self.image_prompt_service = ImagePromptGeneratorService()
-        self.video_prompt_service = VideoPromptGeneratorService()
+        self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
+        self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
+        self.storyboard_agent = StoryboardAgent(model="gpt-5.4-mini")
+        self.image_prompt_service = ImagePromptGeneratorService(
+            llm_client = LLMClient(model="gpt-5.4-mini")
+        )
+        self.video_prompt_service = VideoPromptGeneratorService(
+            llm_client = LLMClient(model="gpt-5.4-mini")
+        )
 
     def run(self) -> dict[str, Any]:
 
