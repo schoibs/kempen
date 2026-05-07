@@ -44,7 +44,7 @@ class BaseAgent(ABC):
         agent_kwargs: dict[str, Any] = {
             "name": self.name,
             "instructions": self.system_prompt,
-            "tools": self.tools,
+            "tools": self.tools or [],
             "output_type": self.output_type,
             "model_settings": ModelSettings(temperature=self.default_temperature),
         }

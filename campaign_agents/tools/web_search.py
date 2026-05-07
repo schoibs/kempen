@@ -16,7 +16,6 @@ def tinyfish_web_search(
     max_results: int = 5,
     location: str = "US",
     language: str = "en",
-    page: int = 0,
 ) -> dict[str, Any]:
     """Search the web for current public information using TinyFish Search API."""
     
@@ -30,8 +29,7 @@ def tinyfish_web_search(
     response = search_client.search.query(
         query=normalized_query,
         location=location,
-        language=language,
-        page=page,
+        language=language
     )
     results = [_format_result(item) for item in _get(response, "results", [])]
 
