@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from agents import Agent as OpenAIAgent
 from agents import ModelSettings, OpenAIProvider, RunConfig, Runner
@@ -23,9 +23,9 @@ class BaseAgent(ABC):
     name = "base_agent"
     output_type: type[BaseModel] | None = None
     system_prompt = ""
-    tools: list[Any] | None = None
-    default_temperature = 0.3
-    default_max_turns = 4
+    tools: Optional[list[Any]] = None
+    default_temperature = 0.7
+    default_max_turns = 5
 
     def __init__(
         self,

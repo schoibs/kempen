@@ -22,10 +22,10 @@ class ProductAnalysisAgent(BaseAgent):
     output_type = ProductAnalysisOutput
     tools = [tinyfish_web_search]
     system_prompt = SYSTEM_PROMPT
-    default_temperature = 0.1
+    default_temperature = 0.7
 
     def run(self, product_image_path: str | Path) -> dict[str, Any]:
-        return {'product_name': 'PRIME Hydration Lemonade flavour bottle', 'category': 'Beverage / sports drink', 'primary_colors': {'name': 'bright yellow', 'hex': '#F6E300'}, 'visible_text': ['LEMONADE', 'FLAVOUR', 'PRIME', 'HYDRATION', '500 mL'], 'preservation_constraints': {'must_preserve': ['Tall plastic bottle with rounded shoulders and yellow cap', 'Bright yellow bottle/body with black vertical PRIME wordmark', "Small 'LEMONADE' text near the top and 'FLAVOUR' beneath it", "'HYDRATION' and '500 mL' text near the bottom", 'Clean white background with centered single-product composition'], 'must_not_introduce': ['Additional objects, hands, or scenery', 'Different bottle shape or cap color', 'New labels, badges, or flavor claims not visible', 'Changes to the visible text layout or orientation', 'Dark or colored background that changes the product presentation']}}
+        # return {'product_name': 'PRIME Hydration Lemonade flavour bottle', 'category': 'Beverage / sports drink', 'primary_colors': {'name': 'bright yellow', 'hex': '#F6E300'}, 'visible_text': ['LEMONADE', 'FLAVOUR', 'PRIME', 'HYDRATION', '500 mL'], 'preservation_constraints': {'must_preserve': ['Tall plastic bottle with rounded shoulders and yellow cap', 'Bright yellow bottle/body with black vertical PRIME wordmark', "Small 'LEMONADE' text near the top and 'FLAVOUR' beneath it", "'HYDRATION' and '500 mL' text near the bottom", 'Clean white background with centered single-product composition'], 'must_not_introduce': ['Additional objects, hands, or scenery', 'Different bottle shape or cap color', 'New labels, badges, or flavor claims not visible', 'Changes to the visible text layout or orientation', 'Dark or colored background that changes the product presentation']}}
 
         image_path = str(product_image_path)
         user_content: list[dict[str, Any]] = [
@@ -35,11 +35,9 @@ class ProductAnalysisAgent(BaseAgent):
                     {
                         "type": "input_text",
                         "text": (
-                            "Extract the visible facts and constraints for "
-                            f"this product image: {image_path}. Include preservation "
-                            "constraints that will keep generated images/videos faithful "
-                            "to the shown subject. Use web search only if it helps clarify "
-                            "current public context for visible product text or packaging."
+                            f"You are given the following image: {image_path}.\n"
+                            "Identify the main subject(s) in the image, then analyze and research the identified subject(s).\n"
+                            "You may use the web search tool."
                         ),
                     },
                     {
