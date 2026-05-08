@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseAgent
-from ..tools import tinyfish_web_search
+from ..tools import tinyfish_web_search, web_fetch
 from ..utils import image_to_data_url
 from .prompt import SYSTEM_PROMPT
 from .schema import ProductAnalysisOutput
@@ -15,7 +15,7 @@ class ProductAnalysisAgent(BaseAgent):
 
     name = "product_analysis_agent"
     output_type = ProductAnalysisOutput
-    tools = [tinyfish_web_search]
+    tools = [tinyfish_web_search, web_fetch]
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.1
 
