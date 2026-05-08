@@ -37,12 +37,8 @@ class CampaignAgentPipeline:
         self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
         self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
         self.storyboard_agent = StoryboardAgent(model="gpt-5.4-mini")
-        self.image_prompt_service = ImagePromptGeneratorService(
-            llm_client = LLMClient(model="deepseek-v4-pro")
-        )
-        self.video_prompt_service = VideoPromptGeneratorService(
-            llm_client = LLMClient(model="gpt-5.4-mini")
-        )
+        self.image_prompt_service = ImagePromptGeneratorService(llm_client = LLMClient(model="gpt-5.4-mini"))
+        self.video_prompt_service = VideoPromptGeneratorService(llm_client = LLMClient(model="gpt-5.4-mini"))
 
     def run(self) -> dict[str, Any]:
         logger.info("Pipeline initialized...")
@@ -75,8 +71,6 @@ class CampaignAgentPipeline:
         )
 
         logger.info(f"{storyboard=}")
-
-        
 
         # Given the storyboard, generate the prompt needed for the starting images
         image_prompts = self.image_prompt_service.run(
