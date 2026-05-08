@@ -17,7 +17,7 @@ The pipeline analyzes the supplied subject image, builds a campaign narrative, c
 - Python 3.10 or newer.
 - An OpenAI API key for the OpenAI Agents SDK.
 - An OpenAI-compatible Chat Completions endpoint for the prompt services.
-- A TinyFish API key if you want the agents to use web search.
+- A TinyFish API key if you want the agents to use web search or web fetch.
 
 Install dependencies:
 
@@ -50,7 +50,7 @@ Notes:
 
 - `OPENAI_API_KEY` is used by the campaign agents built with the OpenAI Agents SDK.
 - `LLM_BASE_URL` and `LLM_API_KEY` are used by `clients/llm.py` for the image and video prompt generation services.
-- `TINYFISH_API_KEY` is only needed when an agent invokes the `tinyfish_web_search` tool.
+- `TINYFISH_API_KEY` is only needed when an agent invokes the `tinyfish_web_search` or `web_fetch` tool.
 
 ## Usage
 

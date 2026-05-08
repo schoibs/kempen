@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseAgent
-from ..tools import tinyfish_web_search
+from ..tools import tinyfish_web_search, web_fetch
 from .prompt import SYSTEM_PROMPT
 from .schema import StoryboardOutput
 
@@ -15,7 +15,7 @@ class StoryboardAgent(BaseAgent):
 
     name = "storyboard_agent"
     output_type = StoryboardOutput
-    tools = [tinyfish_web_search]
+    tools = [tinyfish_web_search, web_fetch]
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.4
 
