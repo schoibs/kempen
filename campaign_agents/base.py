@@ -25,7 +25,7 @@ class BaseAgent(ABC):
     system_prompt = ""
     tools: Optional[list[Any]] = None
     default_temperature = 0.7
-    default_max_turns = 5
+    default_max_turns = 20
 
     def __init__(
         self,
