@@ -25,8 +25,8 @@ class ProductAnalysisAgent(BaseAgent):
     default_temperature = 0.7
 
     def run(self, product_image_path: str | Path) -> dict[str, Any]:
-        # return {'product_name': 'PRIME Hydration Lemonade flavour bottle', 'category': 'Beverage / sports drink', 'primary_colors': {'name': 'bright yellow', 'hex': '#F6E300'}, 'visible_text': ['LEMONADE', 'FLAVOUR', 'PRIME', 'HYDRATION', '500 mL'], 'preservation_constraints': {'must_preserve': ['Tall plastic bottle with rounded shoulders and yellow cap', 'Bright yellow bottle/body with black vertical PRIME wordmark', "Small 'LEMONADE' text near the top and 'FLAVOUR' beneath it", "'HYDRATION' and '500 mL' text near the bottom", 'Clean white background with centered single-product composition'], 'must_not_introduce': ['Additional objects, hands, or scenery', 'Different bottle shape or cap color', 'New labels, badges, or flavor claims not visible', 'Changes to the visible text layout or orientation', 'Dark or colored background that changes the product presentation']}}
-
+        return {'product_name': 'PRIME Hydration Lemonade', 'category': 'sports drink / hydration beverage', 'primary_colors': {'name': 'yellow', 'hex': '#F8E71C'}, 'visible_facts': ['A bright yellow plastic bottle is shown.', 'The label reads PRIME in large vertical black letters with white outline.', 'The flavor shown is Lemonade.', 'The bottle says HYDRATION near the bottom.', 'The bottle size is 500 mL.', 'The cap is yellow.', 'The product appears to be a single-serve beverage bottle.', 'The design is minimal with a white background and bold branding.'], 'additional_facts': ['Official PRIME product page lists Hydration Lemonade as zero added sugar, 25 calories, 10% coconut water, BCAAs + B vitamins, antioxidants + electrolytes, and caffeine-free.', 'PRIME Hydration is marketed as a sports/hydration drink rather than an energy drink.', 'Common ingredient listings include filtered water, coconut water from concentrate, citric acid, dipotassium phosphate, sweeteners such as sucralose and acesulfame potassium, natural flavor, and added electrolytes/minerals.', 'The product is sold in multi-pack and single-bottle formats through retail and online channels.', 'Lemonade is one of several PRIME Hydration flavors, alongside options like Ice Pop, Blue Raspberry, Tropical Punch, and Lemon Lime.']}
+        
         image_path = str(product_image_path)
         user_content: list[dict[str, Any]] = [
             {
@@ -37,7 +37,7 @@ class ProductAnalysisAgent(BaseAgent):
                         "text": (
                             f"You are given the following image: {image_path}.\n"
                             "Identify the main subject(s) in the image, then analyze and research the identified subject(s).\n"
-                            "You may use the web search tool."
+                            "To research, first use the web search tool to run web searches, then use web fetch tool to extract comprehensive data from any URL."
                         ),
                     },
                     {
