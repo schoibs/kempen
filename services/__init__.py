@@ -1,8 +1,8 @@
 """Prompt generation services for campaign production."""
 
-from .video_prompt import ServiceRunError, VideoPromptGeneratorService
+from .video_prompt_generator import VideoPromptGeneratorServiceError, VideoPromptGeneratorService
 
 __all__ = [
-    "ServiceRunError",
+    "VideoPromptGeneratorServiceError",
     "VideoPromptGeneratorService",
 ]
