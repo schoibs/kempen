@@ -72,7 +72,6 @@ class CampaignAgentPipeline:
 
         video_prompts = self.video_prompt_service.run(
             storyboard=storyboard,
-            product_analysis=product_analysis,
             prompt_mode="auto",
         )
 

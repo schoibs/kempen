@@ -51,19 +51,16 @@ class VideoPromptGeneratorService:
     def run(
         self,
         storyboard: dict[str, Any],
-        product_analysis: dict[str, Any] | None = None,
         prompt_mode: PromptMode = "auto",
     ) -> dict[str, Any]:
-        return {'aspect_ratio': '9:16', 'element_bindings': [{'storyboard_ref': '@main_subject', 'kling_ref': '@Element1', 'description': '@main_subject: PRIME Hydration Lemonade 500 mL bottle, bright yellow plastic bottle with yellow cap, minimal white label, large vertical black PRIME lettering with white outline, Lemonade flavor, HYDRATION near the bottom, single-serve sports hydration beverage, clean bold branding.'}, {'storyboard_ref': '@subject_id_2', 'kling_ref': '@Element2', 'description': 'Young adult summer crew, diverse friends in festival-ready beachwear, sun-kissed and stylish, playful expressions, moving as a tight social unit from beach to festival to club.'}, {'storyboard_ref': '@subject_id_3', 'kling_ref': '@Element3', 'description': 'Sun-bleached beach and festival environment that transforms through the day: hot sand, ocean glare, portable speakers, festival lights, neon club interior, heat haze, confetti, and surreal summer energy.'}], 'scene_prompts': [{'scene_id': 'scene_1', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': 'Use the generated campaign starting frame based on storyboard.starting_frame_description.', 'element_refs': ['@Element1', '@Element2'], 'text_overlay': {'required': True, 'copy_text': 'Bright by day.', 'safe_area': 'Keep text centered in upper-middle vertical safe area, away from bottle label and lower-third sand texture.', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': 'Vertical 9:16 cinematic image-to-video starting from the sunrise beach ritual frame: @Element1, a bright yellow PRIME Hydration Lemonade 500 mL bottle with yellow cap and crisp minimal white label, large vertical black PRIME lettering with white outline and HYDRATION near the bottom, drops onto hot rippled sand in extreme close-up from a low angle, bounces once, then settles perfectly upright and centered like a tiny sun. Slow-motion push-in with a tiny vibration on impact, label staying sharp and legible, condensation visible, sand grains bursting outward, heat shimmer rippling behind it, peach-gold sunrise and calm shimmering ocean in the background, bold clean surreal iconic product hero composition, end on the cap glow for a match cut.', 'duration': 2}, {'prompt': 'Vertical 9:16 cinematic image-to-video continuing from the beach hero frame: medium vertical shot with @Element1 centered and monumental while @Element2, a diverse young adult summer crew in festival-ready beachwear, circle the bottle on the beach, lean in, grin, and pass it forward as if the bottle has summoned them. Gentle orbit around the bottle and crew, the bottle remaining the visual anchor with exact bright yellow color and legible label, sun flare blooming, a portable speaker waking up, towels fluttering like flags, sunglasses flashing, ocean sparkle intensifying, heat haze bending the horizon, lively but clean summer energy, end with a whip-pan into the next scene.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}, {'scene_id': 'scene_2', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': "Use the previous generated scene's final frame as this scene's start frame.", 'element_refs': ['@Element1', '@Element2'], 'text_overlay': {'required': True, 'copy_text': 'Ready by night.', 'safe_area': 'Upper third safe area, leaving the center clear for the bottle and crowd motion.', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': 'Vertical 9:16 cinematic image-to-video starting from the previous festival transition frame: tight handheld close-up of @Element1 in a hand with the label facing camera, the bright yellow PRIME Hydration Lemonade bottle staying steady and crisp while the hand threads through a packed daytime festival crowd. Fast forward glide through the crowd, bodies and wristbands streaking by, flags whipping in the wind, sun glare and heat haze intensifying, the bottle acting like a glowing talisman and visual anchor, exact colors preserved, no text overlays, end on a hard-cut bass-hit energy.', 'duration': 2}, {'prompt': 'Vertical 9:16 cinematic image-to-video continuing from the crowd glide: wide vertical reveal of @Element2 moving in sync through festival chaos while @Element1 remains bright and centered as the crew’s sacred anchor. Crane-up reveal from the bottle to the crowd canopy, the crew walking cool and collected, sipping and smiling without breaking stride, confetti bursting, LED panels flickering lemon-yellow, sun glare washing the lane, flags and fans blurring around them, surreal summer procession feel, exact bottle identity and label legibility preserved, end with a neon flicker dissolve.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}, {'scene_id': 'scene_3', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': "Use the previous generated scene's final frame as this scene's start frame.", 'element_refs': ['@Element1', '@Element2'], 'text_overlay': {'required': True, 'copy_text': 'PRIME Lemonade keeps the summer alive.', 'safe_area': 'Center-upper safe area, with final CTA reserved for the last beat and no text crowding the bottle.', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': 'Vertical 9:16 cinematic image-to-video starting from the club transformation frame: close-up of @Element1 on a glowing club table, the bright yellow PRIME Hydration Lemonade bottle unchanged and iconic under neon reflections, condensation dripping down the bottle, a hand reaching in to grab it. Slow lateral slide past the bottle, laser lines sweeping the background, ice bucket vapor curling upward, blacklight and glossy club reflections preserving the exact label colors and legibility, end on a glow wipe into the final hero shot.', 'duration': 2}, {'prompt': 'Vertical 9:16 cinematic image-to-video continuing from the club table glow: hero vertical shot of @Element2 in a neon club, under blacklight and laser haze, raising @Element1 toward camera in a confident final pose. Slow push-in with slight handheld swagger, the crew nodding and smiling, strobe flashes, confetti floating, silhouettes dancing in the background, the bottle remaining the bright yellow beacon with crisp label and exact branding, room pulsing around them, end on a freeze-frame end-card feeling.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}]}
+        return {'aspect_ratio': '9:16', 'element_bindings': [{'storyboard_ref': '@subject_id_0', 'kling_ref': '@Element0', 'description': 'PRIME Hydration Lemonade bottle: bright yellow 500 mL single-serve plastic bottle with yellow cap, minimal white label, large vertical black PRIME lettering with white outline, Lemonade flavor, HYDRATION near the bottom, sun-bright summer icon.'}, {'storyboard_ref': '@subject_id_1', 'kling_ref': '@Element1', 'description': 'Young adult summer crew: diverse stylish friends in festival-ready beachwear, sweaty, playful, cool, socially magnetic, moving from beach to festival to club.'}], 'scene_prompts': [{'scene_id': 'scene_1', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': 'Use the generated campaign starting frame based on storyboard.starting_frame_description.', 'element_refs': ['@Element0', '@Element1'], 'text_overlay': {'required': True, 'copy_text': 'Bright by day.', 'safe_area': 'Center-lower safe area, leaving bottle label unobstructed', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': 'Vertical 9:16, start from the sunrise beach hero frame: @Element0, a bright yellow 500 mL PRIME Hydration Lemonade bottle with yellow cap and minimal white label, lands in slow motion at center frame on hot sand like a tiny sun, slightly tilted then rotating upright so the tall vertical black PRIME lettering with white outline, Lemonade flavor, and HYDRATION near the bottom become perfectly legible. Extreme close-up, low angle, slow-motion push-in with slight handheld tremble. Sand grains burst outward in a glowing halo, heat shimmer ripples across the frame, and the impact flash drives a smash-cut energy into the next beat. Preserve crisp product identity, exact colors, clean white negative space, and cinematic sun-soaked contrast.', 'duration': 2}, {'prompt': 'Vertical 9:16, continue from the beach impact into a wide vertical tableau: @Element0 remains the bright yellow hero centerpiece while @Element1, a diverse stylish young adult summer crew in festival-ready beachwear, gathers around it on the shoreline. Slow orbit around the group and bottle centerpiece. One person twists the cap, another takes the first sip and smiles with instant relief, while towels snap open, a beach umbrella pops up, sunglasses flash, and seagulls streak by as graphic accents. Keep the bottle label facing camera and fully legible, with the same exact yellow, white, and black product colors, and end on a match cut feeling anchored to the yellow label.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}, {'scene_id': 'scene_2', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': "Use the previous generated scene's final frame as this scene's start frame.", 'element_refs': ['@Element0', '@Element1'], 'text_overlay': {'required': True, 'copy_text': 'Ready by night.', 'safe_area': 'Upper-middle safe area, avoiding faces and bottle label', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': "Vertical 9:16, start from the previous scene's final frame and move into a medium tracking shot through a crowded festival lane: @Element1 walks in sync through the crowd, one hand always holding @Element0 at chest height like a bright yellow totem. Fast lateral dolly with whip-pan accents. Flags, LED screens, confetti, and saturated bodies streak past in rhythmic motion while the crew stays cool and composed. Preserve the bottle's exact bright yellow body, yellow cap, minimal white label, and readable PRIME branding as it stays centered in the action, with the crowd and environment swirling around it.", 'duration': 2}, {'prompt': 'Vertical 9:16, continue into a close-up hero shot of @Element0 against neon festival lights. Micro push-in with subtle tilt-up. The bottle rotates slowly with condensation sparkling, label perfectly legible, while a friend from @Element1 takes a quick sip and passes it on. Laser beams and crowd silhouettes form a graphic halo, with sweat, light, and motion stylized and clean rather than messy. Maintain exact product colors and continuity, and end with a neon flare dissolve feeling that carries into the night energy.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}, {'scene_id': 'scene_3', 'duration_sec': 5.0, 'prompt_mode': 'multi', 'start_image_strategy': "Use the previous generated scene's final frame as this scene's start frame.", 'element_refs': ['@Element0', '@Element1'], 'text_overlay': {'required': True, 'copy_text': 'Grab a PRIME Lemonade and keep your summer on.', 'safe_area': 'Lower-third safe area, centered, with bottle visible above text', 'render_in_video_model': False}, 'payload': {'prompt': None, 'multi_prompt': [{'prompt': "Vertical 9:16, start from the previous scene's final frame and reveal a stylized neon club close-up: @Element0 sits upright on the bar under blacklight, condensation shining like chrome, still bright yellow with the minimal white label and bold black PRIME lettering clearly visible. Slow deliberate push-in with a slight dutch angle. Laser grids sweep across mirrored surfaces and club smoke drifts in ribbons, while the bottle remains the calm, iconic center of the scene. Preserve exact product identity, label legibility, and the contrast between the glowing bottle and dark club environment, ending on a cut-on-bass-hit feeling.", 'duration': 2}, {'prompt': 'Vertical 9:16, continue into a vertical medium-wide dance shot with @Element1 moving through the club around @Element0. Circular handheld orbit around the crew. @Element1 dances, then takes a final sip and re-enters the crowd with effortless composure, while strobe flashes, silhouettes, floating confetti, and smoke create a surreal day-to-night continuity. Keep the bottle present as the hero object with exact colors and readable label, and finish on a final freeze feeling that locks the bottle into a confident hero pose.', 'duration': 3}], 'duration': 5, 'shot_type': 'customize', 'negative_prompt': 'blur, distort, low quality, warped product packaging, unreadable or misspelled label text, incorrect logo, extra brands, deformed hands, deformed faces, jitter, flicker, abrupt random cuts, random text overlays, subtitles, watermarks'}}]}
+        
         if prompt_mode not in {"auto", "single", "multi"}:
             raise ServiceRunError("prompt_mode must be one of: auto, single, multi.")
 
         scenes = storyboard.get("scenes")
         scene_ids = [scene.get("id") for scene in scenes]
-        element_bindings = self._build_element_bindings(
-            storyboard=storyboard,
-            product_analysis=product_analysis,
-        )
+        element_bindings = self._build_element_bindings(storyboard=storyboard)
         scene_briefs, expected_prompt_modes = self._scene_briefs(
             scenes=scenes,
             element_bindings=element_bindings,
@@ -104,18 +101,8 @@ class VideoPromptGeneratorService:
     def _build_element_bindings(
         self,
         storyboard: dict[str, Any],
-        product_analysis: dict[str, Any] | None,
     ) -> list[ElementBinding]:
-        bindings = [
-            ElementBinding(
-                storyboard_ref="@main_subject",
-                kling_ref="@Element1",
-                description=self._main_subject_description(
-                    storyboard=storyboard,
-                    product_analysis=product_analysis,
-                ),
-            )
-        ]
+        bindings: list[ElementBinding] = []
 
         for subject in storyboard.get("subjects") or []:
             if not isinstance(subject, dict):
@@ -123,47 +110,22 @@ class VideoPromptGeneratorService:
 
             subject_id = subject.get("subject_id")
             subject_description = str(subject.get("subject_description") or "").strip()
-            if not isinstance(subject_id, int) or not subject_description:
-                continue
-            if "@main_subject" in subject_description:
+            if (
+                not isinstance(subject_id, int)
+                or isinstance(subject_id, bool)
+                or not subject_description
+            ):
                 continue
 
             bindings.append(
                 ElementBinding(
                     storyboard_ref=f"@subject_id_{subject_id}",
-                    kling_ref=f"@Element{len(bindings) + 1}",
+                    kling_ref=f"@Element{subject_id}",
                     description=subject_description,
                 )
             )
 
         return bindings
-
-    def _main_subject_description(
-        self,
-        storyboard: dict[str, Any],
-        product_analysis: dict[str, Any] | None,
-    ) -> str:
-        for subject in storyboard.get("subjects") or []:
-            if not isinstance(subject, dict):
-                continue
-            subject_description = str(subject.get("subject_description") or "").strip()
-            if "@main_subject" in subject_description:
-                return subject_description
-
-        if product_analysis:
-            product_name = product_analysis.get("product_name")
-            category = product_analysis.get("category")
-            visible_facts = product_analysis.get("visible_facts") or []
-            fact_text = "; ".join(str(fact) for fact in visible_facts[:6])
-            description_parts = [
-                str(part)
-                for part in (product_name, category, fact_text)
-                if part
-            ]
-            if description_parts:
-                return "@main_subject: " + ". ".join(description_parts)
-
-        return "@main_subject: main campaign subject from the supplied product image."
 
     def _scene_briefs(
         self,

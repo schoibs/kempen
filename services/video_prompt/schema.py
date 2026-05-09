@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-_STORYBOARD_REF_PATTERN = re.compile(r"@(main_subject|subject_id_\d+)\b")
+_STORYBOARD_REF_PATTERN = re.compile(r"@(subject_id_\d+)\b")
 
 
 class StrictModel(BaseModel):
@@ -14,8 +14,8 @@ class StrictModel(BaseModel):
 
 
 class ElementBinding(StrictModel):
-    storyboard_ref: str = Field(pattern=r"^@(main_subject|subject_id_\d+)$")
-    kling_ref: str = Field(pattern=r"^@Element[1-9]\d*$")
+    storyboard_ref: str = Field(pattern=r"^@(subject_id_\d+)$")
+    kling_ref: str = Field(pattern=r"^@Element(?:0|[1-9]\d*)$")
     description: str = Field(min_length=1)
 
 
