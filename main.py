@@ -9,8 +9,7 @@ from typing import Any
 from logging_config import configure_logging 
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
 from campaign_agents import StoryboardAgent
-from clients import LLMClient
-from services import ImagePromptGeneratorService, VideoPromptGeneratorService
+from services import VideoPromptGeneratorService
 
 
 load_dotenv()
@@ -37,8 +36,7 @@ class CampaignAgentPipeline:
         self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
         self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
         self.storyboard_agent = StoryboardAgent(model="gpt-5.4-mini")
-        self.image_prompt_service = ImagePromptGeneratorService(llm_client = LLMClient(model="gpt-5.4-mini"))
-        self.video_prompt_service = VideoPromptGeneratorService(llm_client = LLMClient(model="gpt-5.4-mini"))
+        self.video_prompt_service = VideoPromptGeneratorService(model="gpt-5.4-mini")
 
     def run(self) -> dict[str, Any]:
         logger.info("Pipeline initialized...")
@@ -72,30 +70,21 @@ class CampaignAgentPipeline:
 
         logger.info(f"{storyboard=}")
 
-        # Given the storyboard, generate the prompt needed for the starting images
-        image_prompts = self.image_prompt_service.run(
-            storyboard=storyboard,
-            product_analysis=product_analysis,
-            narrative_strategy=narrative_strategy,
-            product_image_path=campaign_input.product_image_path,
-        )
-
-        logger.info(f"{image_prompts=}")
-
-        # Given the storyboard, generate the prompt needed for the scenes
         video_prompts = self.video_prompt_service.run(
             storyboard=storyboard,
             product_analysis=product_analysis,
-            narrative_strategy=narrative_strategy,
+            prompt_mode="auto",
         )
 
         logger.info(f"{video_prompts=}")
+
+        raise Exception("stop here")
+        
         return {
             "input": campaign_input.to_dict(),
             "product_analysis": product_analysis,
             "narrative_strategy": narrative_strategy,
             "storyboard": storyboard,
-            "image_prompts": image_prompts,
             "video_prompts": video_prompts,
         }
 
