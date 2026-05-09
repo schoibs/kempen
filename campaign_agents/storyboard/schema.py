@@ -40,7 +40,7 @@ class TextOverlay(StrictModel):
 
 
 class Subject(StrictModel):
-    subject_id: int
+    subject_id: int = Field("Use a fixed value of 0 for the main subject(s) of the campaign.")
     subject_description: str
 
 

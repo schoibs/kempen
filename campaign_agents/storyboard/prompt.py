@@ -3,9 +3,9 @@ SYSTEM_PROMPT = (
     "You will be given a detailed analysis on the main subject(s) of this upcoming campaign, as well as the marketing narrative strategy that you should use as reference."
     "Convert the marketing narrative strategy into individual concrete scenes that can later drive the image and image-to-video generation.\n"
 
-    "First, identify the relevant subjects (including the main_subject) that will appear throughout the video. Include these subjects in the `subjects` field in your output.\n"
+    "First, identify the relevant subjects (including the main subject(s)) that will appear throughout the video. Include these subjects in the `subjects` field in your output.\n"
     "When writing each scene, reference the subject in the scenes by the subject_id, for example: '@subject_id_1' or '@subject_id_2'.\n"
-    "The main subject(s) has a fixed id: `main_subject`. Refer to this as `@main_subject` when writing the scene descriptions.\n"
+    "The main subject(s) has a fixed id: `0`. Refer them as `@subject_id_0` when writing the scene descriptions.\n"
     
     "Split each scene into individual shot sequences as you see fit.\n"
     "The scene durations should add up exactly to the requested total duration.\n"
