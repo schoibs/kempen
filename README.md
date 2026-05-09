@@ -9,8 +9,7 @@ The pipeline analyzes the supplied subject image, builds a campaign narrative, c
 1. `ProductAnalysisAgent` reads the product image and extracts conservative visible facts.
 2. `NarrativeStrategistAgent` combines product analysis with the campaign theme, audience, and target duration.
 3. `StoryboardAgent` converts the strategy into timed 9:16 video scenes.
-4. `ImagePromptGeneratorService` creates one image edit prompt per scene for `gpt-image-2`.
-5. `VideoPromptGeneratorService` creates one Kling image-to-video prompt per scene for `fal-ai/kling-video/v3/standard/image-to-video`.
+4. `VideoPromptGeneratorService` converts each storyboard scene into validated Kling v3 image-to-video prompt payloads.
 
 ## Requirements
 

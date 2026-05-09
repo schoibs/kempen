@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
-import requests
+from openai import OpenAI
+from pydantic import BaseModel
+
+
+ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
+
 
 class LLMClientError(RuntimeError):
     """Raised when the OpenAI-compatible LLM endpoint returns an error."""
@@ -13,80 +18,85 @@ class LLMClientError(RuntimeError):
 
 @dataclass
 class LLMClient:
-    """Chat Completions client for OpenAI-compatible endpoints.
-    """
+    """Chat Completions client that returns parsed Pydantic structured output."""
+
     model: str
     base_url: str | None = None
     api_key: str | None = None
     timeout: float | None = 120
     extra_headers: dict[str, str] = field(default_factory=dict)
+    _client: OpenAI = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.base_url = self.base_url or os.getenv("LLM_BASE_URL")
+        self.base_url = self._normalize_base_url(self.base_url or os.getenv("LLM_BASE_URL"))
         self.api_key = self.api_key or os.getenv("LLM_API_KEY")
-        self.model = self.model
-        
+
         if not self.api_key or not self.base_url:
             raise ValueError("Both api_key and base_url are required for LLMClient.")
+
+        self._client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=self.timeout,
+            default_headers=self.extra_headers,
+        )
 
     def chat(
         self,
         *,
         messages: list[dict[str, Any]],
-        response_format: dict[str, Any] | None = None,
+        response_model: type[ResponseModelT],
         temperature: float | None = None,
         max_tokens: int | None = None,
         extra_body: dict[str, Any] | None = None,
-    ) -> str:
+    ) -> ResponseModelT:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
+            "response_format": response_model,
         }
-        if response_format is not None:
-            payload["response_format"] = response_format
         if temperature is not None:
             payload["temperature"] = temperature
         if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-        if extra_body:
-            payload.update(extra_body)
+            payload["max_completion_tokens"] = max_tokens
+        if extra_body is not None:
+            payload["extra_body"] = extra_body
 
         try:
-            response = requests.post(
-                url=self.base_url,
-                headers=self._headers(),
-                json=payload,
-                timeout=self.timeout,
-            )
-        
-            data = response.json()
+            completion = self._client.chat.completions.parse(**payload)
+            if not completion.choices:
+                raise LLMClientError("LLM endpoint response did not contain choices.")
 
-            if response.status_code >= 400:
-                message = data.get("error", {}).get("message") or response.text[:500]
-                raise LLMClientError(f"LLM endpoint returned HTTP {response.status_code}: {message}")
+            choice = completion.choices[0]
+            finish_reason = choice.finish_reason
+            if finish_reason in {"length", "content_filter"}:
+                raise LLMClientError(
+                    f"LLM structured output did not complete: finish_reason={finish_reason}."
+                )
 
-            content = data.get("choices")[0].get("message").get("content")
+            message = choice.message
+            if message.refusal:
+                raise LLMClientError(f"LLM refused structured output: {message.refusal}")
 
-            if isinstance(content, str):
-                return content
-            elif isinstance(content, list):
-                text_parts = [
-                    item.get("text", "")
-                    for item in content
-                    if isinstance(item, dict) and item.get("type") in {"text", "output_text"}
-                ]
-                if text_parts:
-                    return "\n".join(text_parts)
-            else:
-                raise LLMClientError("LLM endpoint response did not contain text content.")
+            if message.parsed is None:
+                raise LLMClientError(
+                    "LLM endpoint response did not contain parsed structured output."
+                )
 
+            return response_model.model_validate(message.parsed)
+
+        except LLMClientError:
+            raise
         except Exception as exc:
-            raise LLMClientError(f"LLM Client faces error: {exc}") from exc
+            raise LLMClientError(f"LLM client failed: {exc}") from exc
 
-    def _headers(self) -> dict[str, str]:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            **self.extra_headers
-        }
-        return headers
+    @staticmethod
+    def _normalize_base_url(base_url: str | None) -> str | None:
+        if base_url is None:
+            return None
+
+        normalized = base_url.rstrip("/")
+        chat_completions_suffix = "/chat/completions"
+        if normalized.endswith(chat_completions_suffix):
+            normalized = normalized[: -len(chat_completions_suffix)]
+        return normalized

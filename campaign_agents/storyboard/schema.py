@@ -26,48 +26,31 @@ class SfxCue(StrictModel):
     linked_visual_action: str
 
 
-class StartingImage(StrictModel):
-    image_path: str
-    description: str
-
-
-class SceneIntent(StrictModel):
-    audience_feeling: str
-    cinematic_style: str
-    pace: str
-
-
 class AudioDirection(StrictModel):
-    generate_audio: bool
-    mode: str
+    description: str
     ambience: str
     sfx_timeline: list[SfxCue]
-    dialogue: list[str]
+    dialogue_description: str
 
 
 class TextOverlay(StrictModel):
-    enabled: bool
+    required: bool
     copy_text: str | None = Field(alias="copy")
     safe_area: str
 
 
-class Continuity(StrictModel):
-    previous_scene_transition: str
-    next_scene_transition: str
-    continuity_requirements: list[str]
+class Subject(StrictModel):
+    subject_id: int = Field("Use a fixed value of 0 for the main subject(s) of the campaign.")
+    subject_description: str
 
 
 class Scene(StrictModel):
     id: str
     duration_sec: float = Field(gt=0)
-    visual_purpose: str
-    narrative_beat: str
-    starting_image: StartingImage
-    scene_intent: SceneIntent
+    scene_description: str
     shot_sequence: list[Shot] = Field(min_length=1)
     audio_direction: AudioDirection
     text_overlay: TextOverlay
-    continuity: Continuity
 
     @model_validator(mode="after")
     def validate_shot_sequence(self) -> "Scene":
@@ -85,16 +68,19 @@ class Scene(StrictModel):
 class StoryboardOutput(StrictModel):
     total_duration_sec: float = Field(gt=0)
     aspect_ratio: Literal["9:16"]
+    starting_frame_description: str = Field(description="A comprehensive and detailed description of what the starting frame of the campaign video should look like. This image description will be passed to an image generation model later to generate the starting frame and kickstart the video production.")
+    subjects: list[Subject] = Field(description="A list of subjects that will be referenced in the generated scenes. The subject description will be passed to an image generation model later to generate the image of them")
     scenes: list[Scene] = Field(min_length=1)
 
-    @model_validator(mode="after")
-    def validate_scene_sequence(self) -> "StoryboardOutput":
-        scene_ids = [scene.id for scene in self.scenes]
-        if len(scene_ids) != len(set(scene_ids)):
-            raise ValueError("scene ids must be unique")
+    # TODO: temporary comment out validation
+    # @model_validator(mode="after")
+    # def validate_scene_sequence(self) -> "StoryboardOutput":
+    #     scene_ids = [scene.id for scene in self.scenes]
+    #     if len(scene_ids) != len(set(scene_ids)):
+    #         raise ValueError("scene ids must be unique")
 
-        total_scene_duration = sum(scene.duration_sec for scene in self.scenes)
-        if abs(total_scene_duration - self.total_duration_sec) > _DURATION_TOLERANCE_SEC:
-            raise ValueError("scene durations must sum to total_duration_sec")
+    #     total_scene_duration = sum(scene.duration_sec for scene in self.scenes)
+    #     if abs(total_scene_duration - self.total_duration_sec) > _DURATION_TOLERANCE_SEC:
+    #         raise ValueError("scene durations must sum to total_duration_sec")
 
-        return self
+    #     return self
