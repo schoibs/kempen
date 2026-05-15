@@ -8,6 +8,7 @@ from typing import Any
 
 from logging_config import configure_logging 
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
+from services import StoryboardGeneratorService
 
 
 load_dotenv()
@@ -33,6 +34,7 @@ class CampaignAgentPipeline:
         self.campaign_input = campaign_input
         self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
         self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
+        self.storyboard_service = StoryboardGeneratorService(model="gpt-image-2")
 
     def run(self) -> dict[str, Any]:
         logger.info("Pipeline initialized...")
@@ -54,10 +56,20 @@ class CampaignAgentPipeline:
         )
 
         logger.info(f"{narrative_strategy=}")
+
+        storyboard = self.storyboard_service.run(
+            product_image_path=campaign_input.product_image_path,
+            product_analysis=product_analysis,
+            narrative_strategy=narrative_strategy,
+            campaign_input=campaign_input,
+        )
+
+        logger.info(f"{storyboard=}")
         return {
             "input": campaign_input.to_dict(),
             "product_analysis": product_analysis,
             "narrative_strategy": narrative_strategy,
+            "storyboard": storyboard,
         }
 
 
