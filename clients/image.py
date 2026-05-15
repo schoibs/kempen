@@ -23,10 +23,10 @@ class ImageGenerationClient:
     _client: OpenAI = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.api_key = self.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
+        self.api_key = self.api_key or os.getenv("OPENAI_API_KEY")
 
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY or LLM_API_KEY is required for ImageGenerationClient.")
+            raise ValueError("OPENAI_API_KEY is required for ImageGenerationClient.")
 
         self._client = OpenAI(api_key=self.api_key, timeout=self.timeout)
 
