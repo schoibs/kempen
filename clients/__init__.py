@@ -2,9 +2,17 @@
 
 from .image import ImageGenerationClient, ImageGenerationClientError
 from .llm import LLMClient
+from .video import (
+    VideoGenerationClient,
+    VideoGenerationClientError,
+    VideoGenerationClientOutput,
+)
 
 __all__ = [
     "ImageGenerationClient",
     "ImageGenerationClientError",
     "LLMClient",
+    "VideoGenerationClient",
+    "VideoGenerationClientError",
+    "VideoGenerationClientOutput",
 ]
