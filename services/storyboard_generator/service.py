@@ -27,7 +27,7 @@ class StoryboardGeneratorService:
     """Generate a storyboard sheet image for the campaign."""
 
     default_model = "gpt-image-2"
-    default_size = "1152x2048"
+    default_size = "1536x1024"
     default_quality = "medium"
     default_output_format = "png"
     default_output_path = Path("assets/generated/storyboard_sheet.png")
