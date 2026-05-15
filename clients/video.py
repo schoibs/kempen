@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import fal_client
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +46,6 @@ class VideoGenerationClient:
 
     def generate_from_references(
         self,
-        *,
         storyboard_image_path: str | Path,
         product_image_path: str | Path,
         prompt: str,
@@ -110,13 +110,6 @@ class VideoGenerationClient:
     def _fal_client(self) -> Any:
         if self.fal_client is not None:
             return self.fal_client
-
-        try:
-            import fal_client
-        except ImportError as exc:
-            raise VideoGenerationClientError(
-                "fal-client is required for video generation. Install dependencies with requirements.txt."
-            ) from exc
 
         self.fal_client = fal_client
         return self.fal_client

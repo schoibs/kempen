@@ -71,7 +71,6 @@ class CampaignAgentPipeline:
             storyboard_image_path=storyboard.image_path,
             product_image_path=campaign_input.product_image_path,
             product_analysis=product_analysis,
-            narrative_strategy=narrative_strategy,
             campaign_input=campaign_input,
         )
 

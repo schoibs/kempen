@@ -56,7 +56,6 @@ class ImageGenerationClient:
                     size=size,
                     quality=quality,
                     output_format=output_format,
-                    response_format="b64_json",
                 )
         except Exception as exc:
             raise ImageGenerationClientError(f"OpenAI image edit request failed: {exc}") from exc

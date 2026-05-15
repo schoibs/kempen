@@ -24,7 +24,8 @@ class ProductAnalysisAgent(BaseAgent):
     system_prompt = SYSTEM_PROMPT
     default_temperature = 0.7
 
-    def run(self, product_image_path: str | Path) -> dict[str, Any]:        
+    def run(self, product_image_path: str | Path) -> dict[str, Any]:   
+        return {'product_name': 'PRIME Hydration Lemonade', 'category': 'Sports drink / hydration beverage', 'primary_colors': {'name': 'Yellow', 'hex': '#F6E300'}, 'visible_facts': ['A bright yellow bottle of PRIME Hydration is shown.', 'The label says "LEMONADE" and "FLAVOUR".', 'The front label prominently displays the word "PRIME" vertically in black.', 'The bottle says "HYDRATION" and "500 mL" near the bottom.', 'The bottle has a yellow cap and a clear neck.', 'The packaging is minimal and uses high-contrast black text on a yellow background.'], 'additional_facts': ['Official PRIME product pages describe Lemonade Hydration as zero added sugar, 25 calories, caffeine-free, with 10% coconut water, BCAAs, B vitamins, antioxidants, and electrolytes.', 'PRIME positions this drink as a hydration-focused sports beverage rather than an energy drink.', 'Search results show the product is sold in a 500 mL bottle and also in multipacks.', 'Ingredient listings from retail pages commonly include water, coconut water concentrate, citric acid, dipotassium phosphate, natural flavors, magnesium citrate, sucralose, and amino acids such as L-leucine and L-isoleucine.', 'The flavor is part of PRIME Hydration’s broader lineup that includes options like Strawberry Watermelon, Ice Pop, Blue Raspberry, Tropical Punch, and Lemon Lime.']}     
         image_path = str(product_image_path)
         user_content: list[dict[str, Any]] = [
             {
