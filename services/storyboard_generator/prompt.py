@@ -16,7 +16,7 @@ def build_storyboard_prompt(
     tone = narrative_strategy.get("tone") or []
     tone_text = ", ".join(str(item) for item in tone) if tone else "cinematic, branded, energetic"
 
-    return f"""Generate a hyper-realistic 16-panel cinematic storyboard sheet for a {target_duration_sec}-second social media campaign ad ({aspect_ratio} aspect ratio) using the attached reference image.
+    return f"""Generate a hyper-realistic 9-panel cinematic storyboard sheet for a {target_duration_sec}-second social media campaign ad ({aspect_ratio} aspect ratio) using the attached reference image.
 
 The attached reference image is the product called: {product_name}. Its category is {product_category}.
 
@@ -28,9 +28,8 @@ For the campaign ad, here is the rough outline of the video:
 5. tone: {tone_text}
 
 Storyboard sheet requirements:
-- Create one professional storyboard sheet in a clean 4x4 grid.
-- Show 16 numbered cinematic panels, each a distinct keyframe from the ad.
-- Keep the composition vertical-first for a 9:16 social video, even though this is a storyboard sheet.
+- Show 9 numbered cinematic panels, each a distinct keyframe from the ad.
+- Each storyboard panel must be a {aspect_ratio} panel.
 - Avoid distorted objects, misspelled label text, unreadable product text, warped hands, warped faces, duplicate limbs, and random objects.
 
 The finished image should feel like a polished agency storyboard board and ready to guide image-to-video generation."""
