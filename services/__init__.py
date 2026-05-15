@@ -1,8 +1,21 @@
 """Prompt generation services for campaign production."""
 
-from .video_prompt_generator import VideoPromptGeneratorServiceError, VideoPromptGeneratorService
+from .storyboard_generator import (
+    StoryboardGeneratorService,
+    StoryboardGeneratorServiceError,
+    StoryboardGeneratorServiceOutput,
+)
+from .video_generator import (
+    VideoGeneratorService,
+    VideoGeneratorServiceError,
+    VideoGeneratorServiceOutput,
+)
 
 __all__ = [
-    "VideoPromptGeneratorServiceError",
-    "VideoPromptGeneratorService",
+    "StoryboardGeneratorService",
+    "StoryboardGeneratorServiceError",
+    "StoryboardGeneratorServiceOutput",
+    "VideoGeneratorService",
+    "VideoGeneratorServiceError",
+    "VideoGeneratorServiceOutput",
 ]

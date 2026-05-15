@@ -1,77 +1,51 @@
 # Campaign Generator
 
-A Python pipeline that turns a subject image and campaign brief into a short social video campaign.
+Campaign Generator is a Python pipeline that turns a product image and campaign brief into a story-driven social ad.
 
-The pipeline analyzes the supplied subject image, builds a campaign narrative, creates a scene-by-scene storyboard, then generates prompt payloads for image start frames and image-to-video generation.
+## What It Does
 
-## Pipeline
+1. Analyzes the supplied product image.
+2. Researches current public context for the product.
+3. Builds a creative campaign narrative strategy from the brief.
+4. Generates a cinematic storyboard sheet.
+5. Generates a short campaign video.
 
-1. `ProductAnalysisAgent` reads the product image and extracts conservative
-   product facts, visible constraints, and supporting research notes.
-2. `NarrativeStrategistAgent` combines the product analysis with the campaign
-   theme, target audience, and target duration.
-3. `StoryboardAgent` turns the strategy into a timed vertical storyboard with
-   subjects, scenes, shot sequences, audio direction, and text overlay guidance.
-4. `VideoPromptGeneratorService` converts storyboard scenes into validated Kling
-   v3 image-to-video prompt payloads.
-  
-## Requirements
+## Setup
 
-- Python 3.10 or newer
-- OpenAI API access for the OpenAI Agents SDK
-- An OpenAI-compatible Chat Completions endpoint for `clients/llm.py`
-- TinyFish API access if live agents use web search or fetch tools
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
 Install dependencies:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Environment
-
-Create a local `.env` file from the sample:
+Create a `.env` file in the project root:
 
 ```bash
-cp .env.sample .env
-```
-
-Set these values:
-
-```dotenv
 OPENAI_API_KEY=your_openai_api_key
-
+FAL_KEY=your_fal_api_key
 TINYFISH_API_KEY=your_tinyfish_api_key
-
-LLM_BASE_URL=https://api.openai.com/v1/chat/completions
-LLM_API_KEY=your_openai_or_compatible_api_key
 ```
 
-Notes:
+## Run The Pipeline
 
-- `OPENAI_API_KEY` is used by agents built on the OpenAI Agents SDK.
-- `LLM_BASE_URL` and `LLM_API_KEY` are used by `clients/llm.py`. The client
-  accepts either a base URL or a `/chat/completions` URL and normalizes it.
-- `TINYFISH_API_KEY` is required only when an agent invokes
-  `tinyfish_web_search` or `web_fetch`.
-
-## Usage
-
-Run the sample pipeline:
+The sample entrypoint in `main.py` uses `assets/prime.png` and a short campaign brief:
 
 ```bash
 python main.py
 ```
 
-Use the pipeline from Python:
+## Customize The Campaign
+
+Edit the `CampaignInput` in `main.py`:
 
 ```python
-import json
-
-from main import CampaignAgentPipeline, CampaignInput
-
 pipeline = CampaignAgentPipeline(
     campaign_input=CampaignInput(
         product_image_path="assets/prime.png",
@@ -81,7 +55,23 @@ pipeline = CampaignAgentPipeline(
         aspect_ratio="9:16",
     )
 )
-
-result = pipeline.run()
-print(json.dumps(result, indent=2))
+pipeline.run()
 ```
+
+Supported video durations are integer seconds from `4` through `15`.
+
+Supported aspect ratios are:
+
+```text
+auto, 21:9, 16:9, 4:3, 1:1, 3:4, 9:16
+```
+
+## Pipeline Outputs
+
+`CampaignAgentPipeline.run()` returns a dictionary with:
+
+- `input`: the campaign input values
+- `product_analysis`: structured product facts and researched context
+- `narrative_strategy`: campaign concept, premise, hook, conflict, and tone
+- `storyboard`: generated storyboard image path
+- `video`: generated video path, hosted video URL, seed, and fal request id when available

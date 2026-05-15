@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from ..base import BaseAgent
@@ -25,8 +24,14 @@ class NarrativeStrategistAgent(BaseAgent):
         target_audience: str,
         target_duration_sec: int = 15,
     ) -> dict[str, Any]:
-        # return {'concept_title': 'Sun-Soaked Energy Drop', 'hook': 'A single bottle, center frame, that looks like summer in one glance.', 'message': 'Keep the visual dead simple and high-impact: the bright yellow PRIME Hydration Lemonade bottle stays perfectly centered on a clean white background, letting the color do the talking. The narrative should feel like a quick burst of sunny festival energy—fresh, playful, and ready for beach days, late nights, and everything in between. Since the product itself is the hero, the strategy is to frame it as the visual equivalent of a summer mood: bold, crisp, and instantly recognizable. No extra props or scenery—just a clean product spotlight that feels premium, upbeat, and made for young adults chasing fun.', 'tone': ['bright', 'sunny', 'fun', 'youthful', 'clean', 'premium', 'energetic'], 'cta': 'Spot the yellow. Grab the vibe.'}
-        return {'concept': 'Turn PRIME Hydration Lemonade into the unofficial sun-ritual of summer nightlife: a bright yellow ‘day-to-night’ hydration icon that starts at the beach, powers the festival, and survives the afterparty without becoming an energy-drink cliché.', 'key_message': 'PRIME Hydration Lemonade brings bright, caffeine-free refreshment with electrolytes and coconut water for all-day summer momentum.', 'campaign_slogan': 'Bright by day. Ready by night. PRIME Lemonade keeps the summer alive.', 'story_premise': 'A young adult crew chases one endless summer day—from sunrise beach setup to a noon festival, then into a neon club afterparty. Every scene is powered by the same yellow bottle, which becomes the crew’s ritual object for staying cool, collected, and socially untouchable while the sun keeps trying to win.', 'hook': 'A blinding yellow bottle lands in slow motion on hot sand like a tiny sun, and the whole beach scene seems to ‘charge up’ around it as the first sip triggers a chain reor, music, and movement.', 'conflict': 'The summer is too intense: heat, sweat, dehydration, sensory overload, and social stamina all collide. Everyone wants to keep the vibe going, but the body starts calling timeout. The bottle is the answer to the festival-beach-club marathon, but the challenge is making hydration feel like part of the party—not a break from it.', 'tone': ['sun-soaked', 'electric', 'playful', 'stylish', 'youthful', 'slightly surreal', 'festival-rave energy', 'boldly minimal'], 'cta': 'Grab a PRIME Lemonade and keep your summer on.'}
+        # TODO: to remove this comment
+        # return {
+        #     "concept": "Turn PRIME Hydration Lemonade into the unofficial ‘sun-activated accessory’ of summer: a neon-yellow bottle that behaves like a portable festival prop, beach ritual, and club entrance stamp all at once. The campaign frames hydration as the thing that lets the party last longer, glow brighter, and look cooler while doing it.",
+        #     "story_premise": "A group of young adults hits a heatwave-drenched summer circuit: beach at noon, festival by sunset, club after dark. In each scene, the bright yellow PRIME bottle becomes the same magical object—passed around like a totem, photographed like fashion, and carried like proof that you’re still going when everyone else is fading. The lemonade flavor is the sparkling, citrusy reset button that keeps the night alive without the crash of an energy drink.",
+        #     "hook": "A sun-soaked opener where the bottle seems to ‘charge’ the scene: the moment PRIME Lemonade hits the frame, umbrellas pop brighter, bass gets louder, and the entire party color-grades from hot to electric yellow. Tag the idea as: ‘When the day gets too hot, the party turns PRIME.’",
+        #     "conflict": "The heat, the sweat, the long queues, and the all-day-to-all-night stamina test threaten to drain the fun. Everyone wants to stay in the moment, but the body is trying to tap out. PRIME Lemonade solves the tension by positioning hydration as the rebellious move—the clean, cold, zero-caffeine answer to burnout, helping the crew keep their sparkle without switching to an energy-drink personality.",
+        #     "tone": ["sun-drenched and euphoric", "playfully rebellious", "high-energy luxe"],
+        # }
 
         return self._run_sdk(
             user_input=(
