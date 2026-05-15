@@ -15,17 +15,23 @@ Campaign Generator is a Python pipeline that turns a product image and campaign 
 Create and activate a virtual environment:
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root. You can start from `.env.sample`:
+
+```bash
+cp .env.sample .env
+```
+
+Then fill in the required API keys:
 
 ```bash
 OPENAI_API_KEY=your_openai_api_key
@@ -33,12 +39,14 @@ FAL_KEY=your_fal_api_key
 TINYFISH_API_KEY=your_tinyfish_api_key
 ```
 
+The pipeline calls live OpenAI, fal.ai, and TinyFish APIs.
+
 ## Run The Pipeline
 
 The sample entrypoint in `main.py` uses `assets/prime.png` and a short campaign brief:
 
 ```bash
-python main.py
+python3 main.py
 ```
 
 ## Customize The Campaign
@@ -73,5 +81,7 @@ auto, 21:9, 16:9, 4:3, 1:1, 3:4, 9:16
 - `input`: the campaign input values
 - `product_analysis`: structured product facts and researched context
 - `narrative_strategy`: campaign concept, premise, hook, conflict, and tone
-- `storyboard`: generated storyboard image path
-- `video`: generated video path, hosted video URL, seed, and fal request id when available
+- `storyboard`: the generated storyboard image path
+- `video`: the generated video path
+
+By default, generated media is written to `assets/generated/storyboard_sheet.png` and `assets/generated/campaign_video.mp4`.
