@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 class StoryboardGeneratorServiceError(RuntimeError):
     """Raised when storyboard generation cannot produce usable output."""
+
+
+@dataclass(frozen=True)
+class StoryboardGeneratorServiceOutput:
+    image_path: str
 
 
 class StoryboardGeneratorService:
@@ -49,7 +54,7 @@ class StoryboardGeneratorService:
         narrative_strategy: dict[str, Any],
         campaign_input: Any,
         output_path: str | Path | None = None,
-    ) -> str:
+    ) -> StoryboardGeneratorServiceOutput:
         campaign_input_dict = self._campaign_input_to_dict(campaign_input)
         output_path = Path(output_path or self.default_output_path)
 
@@ -72,13 +77,16 @@ class StoryboardGeneratorService:
         except (ImageGenerationClientError, OSError, ValueError) as exc:
             raise StoryboardGeneratorServiceError(f"Storyboard image generation failed: {exc}") from exc
 
-        return str(generated_path)
+        return StoryboardGeneratorServiceOutput(
+            image_path=str(generated_path)
+        )
 
     def _image_client(self) -> ImageGenerationClient:
         if self.image_client is None:
             self.image_client = ImageGenerationClient(model=self.model)
         return self.image_client
 
+    @staticmethod
     def _campaign_input_to_dict(campaign_input: Any) -> dict[str, Any]:
         if isinstance(campaign_input, dict):
             return dict(campaign_input)
