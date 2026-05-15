@@ -67,6 +67,8 @@ class CampaignAgentPipeline:
 
         logger.info(f"{storyboard=}")
 
+        raise Exception("stop here")
+
         video = self.video_service.run(
             storyboard_image_path=storyboard.image_path,
             product_image_path=campaign_input.product_image_path,
