@@ -55,7 +55,9 @@ class StoryboardGeneratorService:
         campaign_input: Any,
         output_path: str | Path | None = None,
     ) -> StoryboardGeneratorServiceOutput:
-        return StoryboardGeneratorServiceOutput(image_path='assets/generated/storyboard_sheet.png')
+        # TODO: to remove this comment
+        # return StoryboardGeneratorServiceOutput(image_path='assets/generated/storyboard_sheet.png')
+
         campaign_input_dict = self._campaign_input_to_dict(campaign_input)
         output_path = Path(output_path or self.default_output_path)
 

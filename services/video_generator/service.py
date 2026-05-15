@@ -59,12 +59,14 @@ class VideoGeneratorService:
         campaign_input: Any,
         output_path: str | Path | None = None,
     ) -> VideoGeneratorServiceOutput:
-        return VideoGeneratorServiceOutput(
-            video_path="assets/generated/campaign_video.mp4",
-            video_url="xxx",
-            seed=67,
-            request_id="xxx"
-        )
+
+        # TODO: to remove this comment
+        # return VideoGeneratorServiceOutput(
+        #     video_path="assets/generated/campaign_video.mp4",
+        #     video_url="xxx",
+        #     seed=67,
+        #     request_id="xxx"
+        # )
 
         campaign_input_dict = self._campaign_input_to_dict(campaign_input)
         output_path = Path(output_path or self.default_output_path)
