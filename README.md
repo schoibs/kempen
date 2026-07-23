@@ -1,14 +1,33 @@
-# Campaign Generator
+# Kempen
 
-Campaign Generator is a Python pipeline that turns a product image and campaign brief into a story-driven social ad.
+Kempen turns a product image and a campaign brief into a social-video campaign package: researched product facts, a narrative strategy, a storyboard sheet, and a finished video.
 
-## What It Does
+## How it works
 
-1. Analyzes the supplied product image.
-2. Researches current public context for the product.
-3. Builds a creative campaign narrative strategy from the brief.
-4. Generates a cinematic storyboard sheet.
-5. Generates a short campaign video.
+```text
+product image + campaign brief
+            |
+            v
+product analysis and web research
+            |
+            v
+campaign narrative strategy
+            |
+            v
+reference-guided storyboard image
+            |
+            v
+reference-guided campaign video
+```
+
+`CampaignAgentPipeline.run()` returns the inputs, the two structured planning outputs, and paths/metadata for the generated storyboard and video.
+
+## Prerequisites
+
+- Python 3.10 or later
+- API credentials for OpenAI, TinyFish, and fal.ai
+
+All stages make external API requests and may incur provider charges.
 
 ## Setup
 
@@ -19,59 +38,58 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Install dependencies:
+Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create a `.env` file in the project root:
+Create a `.env` file in the repository root:
 
-```bash
+```dotenv
 OPENAI_API_KEY=your_openai_api_key
-FAL_KEY=your_fal_api_key
 TINYFISH_API_KEY=your_tinyfish_api_key
+FAL_KEY=your_fal_api_key
 ```
 
-## Run The Pipeline
+## Run the sample campaign
 
-The sample entrypoint in `main.py` uses `assets/prime.png` and a short campaign brief:
+The sample in [`main.py`](main.py) uses [`assets/prime.png`](assets/prime.png):
 
 ```bash
 python main.py
 ```
 
-## Customize The Campaign
+On success, the default generated assets are written to:
 
-Edit the `CampaignInput` in `main.py`:
+- `assets/generated/storyboard_sheet.png`
+- `assets/generated/campaign_video.mp4`
+
+The video stage also returns the hosted video URL, generation seed (when provided), and fal request ID.
+
+## Customize a campaign
+
+Edit the `CampaignInput` in `main.py`, or import the pipeline into your own script:
 
 ```python
+from main import CampaignAgentPipeline, CampaignInput
+
 pipeline = CampaignAgentPipeline(
-    campaign_input=CampaignInput(
-        product_image_path="assets/prime.png",
-        campaign_theme="bright, sunny and fun",
-        target_audience="young adults who love summer festivals, beach parties and clubs",
+    CampaignInput(
+        product_image_path="assets/my-product.png",
+        campaign_theme="bright, sunny, and fun",
+        target_audience="young adults who love summer festivals",
         target_duration_sec=15,
         aspect_ratio="9:16",
     )
 )
-pipeline.run()
+
+result = pipeline.run()
+print(result["video"].video_path)
 ```
 
-Supported video durations are integer seconds from `4` through `15`.
-
-Supported aspect ratios are:
+Video durations must be whole seconds from `4` through `15`. Supported aspect ratios are:
 
 ```text
 auto, 21:9, 16:9, 4:3, 1:1, 3:4, 9:16
 ```
-
-## Pipeline Outputs
-
-`CampaignAgentPipeline.run()` returns a dictionary with:
-
-- `input`: the campaign input values
-- `product_analysis`: structured product facts and researched context
-- `narrative_strategy`: campaign concept, premise, hook, conflict, and tone
-- `storyboard`: generated storyboard image path
-- `video`: generated video path, hosted video URL, seed, and fal request id when available
