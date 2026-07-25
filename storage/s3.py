@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import boto3
@@ -142,6 +143,27 @@ class S3ObjectStorage(ObjectStorage):
         finally:
             body.close()
         return b"".join(chunks)
+
+    def upload_file(
+        self,
+        *,
+        object_key: str,
+        local_path: str | Path,
+        content_type: str,
+    ) -> ObjectMetadata:
+        source = Path(local_path)
+        if not source.is_file():
+            raise ObjectStorageError("Generated artifact is missing.")
+        try:
+            self._client.upload_file(
+                str(source),
+                self.bucket,
+                object_key,
+                ExtraArgs={"ContentType": content_type},
+            )
+        except (ClientError, BotoCoreError, OSError) as exc:
+            raise ObjectStorageError("Could not upload generated artifact.") from exc
+        return self.head_object(object_key=object_key)
 
     def delete_object(self, *, object_key: str) -> None:
         try:

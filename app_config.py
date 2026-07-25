@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
     fake_provider_mode: bool = True
+    fake_provider_latency_sec: float = Field(default=0.0, ge=0, le=60)
+    fake_provider_failure_stage: str | None = None
 
     database_url: str = "postgresql+psycopg://campaign:campaign@localhost:5432/campaign"
     redis_url: str = "redis://localhost:6379/0"
@@ -43,6 +45,10 @@ class Settings(BaseSettings):
     oidc_audience: str | None = None
 
     dispatcher_interval_sec: float = Field(default=5.0, gt=0)
+    dispatcher_reconcile_after_sec: float = Field(default=15.0, gt=0)
+    stage_lease_sec: int = Field(default=900, ge=1, le=3600)
+    video_poll_interval_sec: float = Field(default=5.0, ge=1, le=30)
+    idempotency_retention_sec: int = Field(default=24 * 60 * 60, ge=60)
 
     openai_api_key: SecretStr | None = Field(
         default=None,
@@ -56,6 +62,26 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FAL_KEY",
     )
+
+    @field_validator("fake_provider_failure_stage")
+    @classmethod
+    def validate_fake_provider_failure_stage(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        allowed = {
+            "product_analysis",
+            "narrative_strategy",
+            "storyboard_generation",
+            "video_submission",
+            "video_poll",
+            "video_finalize",
+        }
+        if value not in allowed:
+            raise ValueError(
+                "fake_provider_failure_stage must be one of: "
+                + ", ".join(sorted(allowed))
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_runtime_mode(self) -> "Settings":

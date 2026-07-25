@@ -49,6 +49,7 @@ class CampaignStageOperations:
     def analyze_product(self, *, product_image_path: str | Path) -> dict[str, Any]:
         image_path = self._require_file(product_image_path, "Product image")
         if self.fake_provider_mode:
+            self._simulate_fake_provider("product_analysis")
             return {
                 "product_name": image_path.stem.replace("_", " ").title(),
                 "category": "Test product",
@@ -70,6 +71,7 @@ class CampaignStageOperations:
     ) -> dict[str, Any]:
         product_analysis = self._json_object(product_analysis, "Product analysis")
         if self.fake_provider_mode:
+            self._simulate_fake_provider("narrative_strategy")
             return {
                 "concept": f"A concise campaign for {product_analysis['product_name']}.",
                 "story_premise": campaign_input.campaign_theme,
@@ -100,6 +102,7 @@ class CampaignStageOperations:
         image_path = self._require_file(product_image_path, "Product image")
         destination_path = Path(output_path)
         if self.fake_provider_mode:
+            self._simulate_fake_provider("storyboard_generation")
             destination_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(image_path, destination_path)
             return {"image_path": str(destination_path)}
@@ -122,6 +125,7 @@ class CampaignStageOperations:
         campaign_input: CampaignInput,
     ) -> dict[str, Any]:
         if self.fake_provider_mode:
+            self._simulate_fake_provider("video_submission")
             self._require_file(storyboard_image_path, "Storyboard image")
             self._require_file(product_image_path, "Product image")
             return {
@@ -142,6 +146,7 @@ class CampaignStageOperations:
 
     def poll_video(self, *, request_id: str) -> dict[str, Any]:
         if self.fake_provider_mode:
+            self._simulate_fake_provider("video_poll")
             return {
                 "request_id": request_id,
                 "status": "completed",
@@ -166,6 +171,7 @@ class CampaignStageOperations:
     ) -> dict[str, Any]:
         destination_path = Path(output_path)
         if self.fake_provider_mode:
+            self._simulate_fake_provider("video_finalize")
             destination_path.parent.mkdir(parents=True, exist_ok=True)
             destination_path.write_bytes(b"fake campaign video\n")
             return {
@@ -268,6 +274,15 @@ class CampaignStageOperations:
         if self._video_service is None:
             self._video_service = VideoGeneratorService()
         return self._video_service
+
+    def _simulate_fake_provider(self, stage: str) -> None:
+        """Make local asynchronous behaviour observable without provider calls."""
+
+        settings = get_settings()
+        if settings.fake_provider_latency_sec:
+            time.sleep(settings.fake_provider_latency_sec)
+        if settings.fake_provider_failure_stage == stage:
+            raise RuntimeError(f"Fake provider configured to fail at {stage}.")
 
     @staticmethod
     def _copy_input_to_job_directory(source_path: str | Path, job_directory: Path) -> Path:

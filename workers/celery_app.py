@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from celery import Celery
+from kombu import Queue
 
 from app_config import get_settings
 
@@ -19,6 +20,8 @@ celery_app.conf.update(
     result_backend=None,
     task_acks_late=True,
     task_default_queue="planning",
+    task_queues=(Queue("planning"), Queue("media")),
+    task_routes={"campaign.run_stage": {"queue": "planning"}},
     task_ignore_result=True,
     task_reject_on_worker_lost=True,
     task_serializer="json",

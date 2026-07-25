@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ObjectStorageError(RuntimeError):
@@ -54,6 +55,16 @@ class ObjectStorage(ABC):
     @abstractmethod
     def download_bytes(self, *, object_key: str, max_bytes: int) -> bytes:
         """Download a bounded object for worker-side validation."""
+
+    @abstractmethod
+    def upload_file(
+        self,
+        *,
+        object_key: str,
+        local_path: str | Path,
+        content_type: str,
+    ) -> ObjectMetadata:
+        """Upload a generated artifact and return its stored metadata."""
 
     @abstractmethod
     def delete_object(self, *, object_key: str) -> None:

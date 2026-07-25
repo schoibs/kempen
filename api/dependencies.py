@@ -18,7 +18,7 @@ class Principal:
 
 
 def get_principal() -> Principal:
-    """Provide the fixed local principal until OIDC is introduced in Milestone 5."""
+    """Provide the fixed local principal until OIDC authentication is introduced."""
 
     if get_settings().auth_enabled:
         raise HTTPException(status_code=503, detail="Authentication is not configured.")
