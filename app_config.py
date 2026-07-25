@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     object_storage_bucket: str = "campaign-assets"
     object_storage_access_key: SecretStr = SecretStr("campaign-local")
     object_storage_secret_key: SecretStr = SecretStr("campaign-local-secret")
+    upload_url_expiry_sec: int = Field(default=900, ge=60, le=3600)
+    download_url_expiry_sec: int = Field(default=900, ge=60, le=3600)
+    max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+    max_image_width: int = Field(default=8192, gt=0)
+    max_image_height: int = Field(default=8192, gt=0)
+    max_image_pixels: int = Field(default=40_000_000, gt=0)
+    unattached_upload_retention_sec: int = Field(default=24 * 60 * 60, gt=0)
 
     auth_enabled: bool = False
     oidc_issuer: str | None = None

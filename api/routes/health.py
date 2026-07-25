@@ -10,6 +10,7 @@ from app_config import get_settings
 from infrastructure import (
     MigrationStateError,
     check_database_and_migrations,
+    check_object_storage,
     check_redis,
 )
 
@@ -36,6 +37,7 @@ def readiness() -> JSONResponse:
         "database": "unknown",
         "migrations": "unknown",
         "redis": "unknown",
+        "object_storage": "unknown",
     }
 
     try:
@@ -57,6 +59,13 @@ def readiness() -> JSONResponse:
     except Exception:
         checks["redis"] = "unavailable"
         logger.exception("Readiness Redis check failed.")
+
+    try:
+        check_object_storage()
+        checks["object_storage"] = "ok"
+    except Exception:
+        checks["object_storage"] = "unavailable"
+        logger.exception("Readiness object-storage check failed.")
 
     is_ready = all(value == "ok" for value in checks.values())
     return JSONResponse(

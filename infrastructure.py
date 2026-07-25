@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app_config import get_settings
 from persistence.database import get_engine
+from storage import get_object_storage
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -52,3 +53,9 @@ def check_database_and_migrations() -> None:
 def check_redis() -> None:
     if not get_redis_client().ping():
         raise ConnectionError("Redis ping did not return success.")
+
+
+def check_object_storage() -> None:
+    """Verify the private object bucket is available without contacting providers."""
+
+    get_object_storage().ensure_bucket()
