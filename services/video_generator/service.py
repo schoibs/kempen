@@ -9,6 +9,7 @@ from typing import Any
 
 from httpx import request
 
+from app_config import get_settings
 from clients import (
     VideoGenerationClient,
     VideoGenerationClientError,
@@ -32,6 +33,7 @@ class VideoGeneratorServiceOutput:
     video_url: str
     seed: int | None = None
     request_id: str | None = None
+    provider_metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -142,7 +144,7 @@ class VideoGeneratorService:
         request_id: str,
         output_path: str | Path,
     ) -> VideoGeneratorServiceOutput:
-        logger.info("Finalizing campaign video at %s", output_path)
+        logger.info("Finalizing campaign video artifact.")
         try:
             generated_video = self._video_client().finalize_request(
                 request_id=request_id,
@@ -155,11 +157,21 @@ class VideoGeneratorService:
             video_url=generated_video.video_url,
             seed=generated_video.seed,
             request_id=generated_video.request_id,
+            provider_metadata=generated_video.provider_metadata,
         )
+
+    def cancel(self, *, request_id: str) -> None:
+        try:
+            self._video_client().cancel_request(request_id=request_id)
+        except VideoGenerationClientError as exc:
+            raise VideoGeneratorServiceError("Video cancellation failed.") from exc
 
     def _video_client(self) -> VideoGenerationClient:
         if self.video_client is None:
-            self.video_client = VideoGenerationClient(model_endpoint=self.model_endpoint)
+            self.video_client = VideoGenerationClient(
+                model_endpoint=self.model_endpoint,
+                max_download_bytes=get_settings().max_generated_video_bytes,
+            )
         return self.video_client
 
     def _validate_settings(

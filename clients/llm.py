@@ -23,6 +23,7 @@ class LLMClient:
     model: str
     api_key: str | None = None
     timeout: float | None = 120
+    max_retries: int = 0
     extra_headers: dict[str, str] = field(default_factory=dict)
     _client: OpenAI = field(init=False, repr=False)
 
@@ -35,6 +36,7 @@ class LLMClient:
         self._client = OpenAI(
             api_key=self.api_key,
             timeout=self.timeout,
+            max_retries=self.max_retries,
             default_headers=self.extra_headers,
         )
 

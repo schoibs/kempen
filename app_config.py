@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     upload_url_expiry_sec: int = Field(default=900, ge=60, le=3600)
     download_url_expiry_sec: int = Field(default=900, ge=60, le=3600)
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+    max_generated_video_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
     max_image_width: int = Field(default=8192, gt=0)
     max_image_height: int = Field(default=8192, gt=0)
     max_image_pixels: int = Field(default=40_000_000, gt=0)
@@ -47,7 +48,23 @@ class Settings(BaseSettings):
     dispatcher_interval_sec: float = Field(default=5.0, gt=0)
     dispatcher_reconcile_after_sec: float = Field(default=15.0, gt=0)
     stage_lease_sec: int = Field(default=900, ge=1, le=3600)
-    video_poll_interval_sec: float = Field(default=5.0, ge=1, le=30)
+    input_validation_deadline_sec: int = Field(default=120, ge=1)
+    planning_stage_deadline_sec: int = Field(default=15 * 60, ge=1)
+    storyboard_stage_deadline_sec: int = Field(default=10 * 60, ge=1)
+    video_submission_deadline_sec: int = Field(default=120, ge=1)
+    video_poll_deadline_sec: int = Field(default=45 * 60, ge=1)
+    video_finalize_deadline_sec: int = Field(default=10 * 60, ge=1)
+    input_validation_max_attempts: int = Field(default=3, ge=1)
+    planning_stage_max_attempts: int = Field(default=2, ge=1)
+    storyboard_stage_max_attempts: int = Field(default=2, ge=1)
+    video_submission_max_attempts: int = Field(default=2, ge=1)
+    video_finalize_max_attempts: int = Field(default=3, ge=1)
+    retry_backoff_min_sec: float = Field(default=5.0, ge=0.1)
+    retry_backoff_max_sec: float = Field(default=60.0, ge=0.1)
+    retry_jitter_ratio: float = Field(default=0.2, ge=0, le=1)
+    video_poll_min_sec: float = Field(default=5.0, ge=1, le=30)
+    video_poll_max_sec: float = Field(default=30.0, ge=1, le=120)
+    video_poll_jitter_ratio: float = Field(default=0.2, ge=0, le=1)
     idempotency_retention_sec: int = Field(default=24 * 60 * 60, ge=60)
 
     openai_api_key: SecretStr | None = Field(
@@ -75,6 +92,7 @@ class Settings(BaseSettings):
             "video_submission",
             "video_poll",
             "video_finalize",
+            "video_cancel",
         }
         if value not in allowed:
             raise ValueError(
@@ -85,6 +103,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime_mode(self) -> "Settings":
+        if self.retry_backoff_min_sec > self.retry_backoff_max_sec:
+            raise ValueError("retry_backoff_min_sec must not exceed retry_backoff_max_sec")
+        if self.video_poll_min_sec > self.video_poll_max_sec:
+            raise ValueError("video_poll_min_sec must not exceed video_poll_max_sec")
         if not self.fake_provider_mode:
             missing = [
                 name

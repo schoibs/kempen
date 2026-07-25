@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import random
 import secrets
 import tempfile
+import time
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,7 @@ from app_config import get_settings
 from domain.campaigns import CampaignInput
 from domain.enums import CampaignStage, CampaignStatus, PROGRESS_PERCENT_BY_STAGE, PUBLIC_STAGE_BY_STAGE, StageStatus
 from domain.orchestration import CampaignStageOperations
+from domain.provider_errors import ProviderStageError, classify_stage_failure
 from persistence.database import get_session_factory
 from persistence.ids import new_resource_id
 from persistence.models import Asset, Campaign, CampaignEvent, CampaignStageRun, DispatchOutbox
@@ -41,6 +44,12 @@ class StageExecution:
     output: dict[str, Any]
     next_stage: CampaignStage | None = None
     wait_until: datetime | None = None
+    provider_name: str | None = None
+    provider_metadata: dict[str, Any] | None = None
+
+
+class CampaignCancellationRequested(RuntimeError):
+    """Stops a claimed stage before it can call another provider."""
 
 
 @celery_app.task(name="campaign.healthcheck")
@@ -64,12 +73,24 @@ def run_stage(*, campaign_id: str, stage_run_id: str) -> dict[str, str]:
         return {"status": "noop"}
 
     try:
+        started = time.monotonic()
         execution = _execute_stage(claim)
+        execution = replace(
+            execution,
+            provider_name=execution.provider_name or _provider_for_stage(claim.stage),
+            provider_metadata={
+                **(execution.provider_metadata or {}),
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            },
+        )
         if execution.wait_until is not None:
             _wait_for_external(claim, execution)
             return {"status": "waiting_external"}
         _complete_stage(claim, execution)
         return {"status": "completed"}
+    except CampaignCancellationRequested:
+        _cancel_claimed_stage(claim)
+        return {"status": "cancelled"}
     except InputImageValidationError:
         _fail_stage(
             claim,
@@ -86,25 +107,20 @@ def run_stage(*, campaign_id: str, stage_run_id: str) -> dict[str, str]:
             retryable=False,
         )
         return {"status": "failed"}
-    except ObjectStorageError:
-        _fail_stage(
-            claim,
-            code="ARTIFACT_UPLOAD_FAILED",
-            message="Campaign artifact storage is temporarily unavailable.",
-            retryable=True,
-        )
-        return {"status": "failed"}
-    except Exception:
+    except Exception as exc:
+        failure = classify_stage_failure(error=exc, stage=claim.stage)
         logger.error(
-            "Campaign stage failed campaign_id=%s stage=%s",
+            "Campaign stage failed campaign_id=%s stage=%s error_code=%s error_type=%s",
             claim.campaign_id,
             claim.stage.value,
+            failure.code,
+            type(exc).__name__,
         )
         _fail_stage(
             claim,
-            code="INTERNAL_ERROR",
-            message="Campaign generation could not complete.",
-            retryable=False,
+            code=failure.code,
+            message=failure.message,
+            retryable=failure.retryable,
         )
         return {"status": "failed"}
 
@@ -165,7 +181,17 @@ def _claim_stage(*, campaign_id: str, stage_run_id: str) -> ClaimedStage | None:
             campaign = session.scalar(
                 select(Campaign).where(Campaign.id == campaign_id).with_for_update()
             )
-            if campaign is None or campaign.status not in {
+            if campaign is None:
+                return None
+            if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+                _cancel_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=stage_run,
+                    now=datetime.now(UTC),
+                )
+                return None
+            if campaign.status not in {
                 CampaignStatus.QUEUED.value,
                 CampaignStatus.RUNNING.value,
             }:
@@ -174,13 +200,23 @@ def _claim_stage(*, campaign_id: str, stage_run_id: str) -> ClaimedStage | None:
                 return None
 
             now = datetime.now(UTC)
+            if _stage_deadline_exceeded(stage_run, now):
+                _fail_expired_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=stage_run,
+                    now=now,
+                )
+                return None
             if not _stage_is_claimable(stage_run, now):
                 return None
 
             run_token = secrets.token_urlsafe(24)
             stage_run.status = StageStatus.RUNNING.value
             stage_run.run_token = run_token
-            stage_run.lease_expires_at = now + timedelta(seconds=settings.stage_lease_sec)
+            stage_run.lease_expires_at = now + timedelta(
+                seconds=min(settings.stage_lease_sec, _stage_deadline_seconds(stage_run.stage))
+            )
             stage_run.next_poll_at = None
             stage_run.started_at = stage_run.started_at or now
             stage_run.updated_at = now
@@ -211,7 +247,7 @@ def _claim_stage(*, campaign_id: str, stage_run_id: str) -> ClaimedStage | None:
 
 def _stage_is_claimable(stage_run: CampaignStageRun, now: datetime) -> bool:
     if stage_run.status == StageStatus.PENDING.value:
-        return True
+        return stage_run.next_attempt_at is None or stage_run.next_attempt_at <= now
     if stage_run.status == StageStatus.RUNNING.value:
         return stage_run.lease_expires_at is None or stage_run.lease_expires_at <= now
     if stage_run.status == StageStatus.WAITING_EXTERNAL.value:
@@ -225,6 +261,10 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
         campaign = session.get(Campaign, claim.campaign_id)
         if campaign is None:
             raise ObjectNotFoundError("Campaign is missing.")
+        stage_run = session.get(CampaignStageRun, claim.stage_run_id)
+        if stage_run is None:
+            raise ObjectNotFoundError("Campaign stage is missing.")
+        _ensure_campaign_not_cancelled(campaign_id=campaign.id)
         operations = CampaignStageOperations()
         with tempfile.TemporaryDirectory(prefix=f"campaign-{campaign.id}-") as directory:
             workspace = Path(directory)
@@ -252,6 +292,7 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     storage=get_object_storage(),
                     workspace=workspace,
                 )
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
                 return StageExecution(
                     output=operations.analyze_product(product_image_path=product["path"]),
                     next_stage=CampaignStage.NARRATIVE_STRATEGY,
@@ -263,6 +304,7 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     campaign_id=campaign.id,
                     stage=CampaignStage.PRODUCT_ANALYSIS,
                 )
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
                 return StageExecution(
                     output=operations.build_narrative(
                         product_analysis=product_analysis,
@@ -279,6 +321,7 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     workspace=workspace,
                 )
                 storyboard_path = workspace / "storyboard.png"
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
                 result = operations.generate_storyboard(
                     product_image_path=product["path"],
                     product_analysis=_required_stage_output(
@@ -307,6 +350,16 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                 )
 
             if claim.stage == CampaignStage.VIDEO_SUBMISSION:
+                if stage_run.provider_request_id:
+                    checkpoint = dict(stage_run.output_json or {})
+                    checkpoint.setdefault("request_id", stage_run.provider_request_id)
+                    checkpoint.setdefault("provider", stage_run.provider_name or "fal")
+                    return StageExecution(
+                        output=checkpoint,
+                        next_stage=CampaignStage.VIDEO_POLL,
+                        provider_name=stage_run.provider_name or "fal",
+                        provider_metadata=stage_run.provider_metadata,
+                    )
                 product = _materialize_product_image(
                     campaign=campaign,
                     session=session,
@@ -321,8 +374,8 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     workspace=workspace,
                     filename="storyboard.png",
                 )
-                return StageExecution(
-                    output=operations.submit_video(
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
+                submission = operations.submit_video(
                         storyboard_image_path=storyboard,
                         product_image_path=product["path"],
                         product_analysis=_required_stage_output(
@@ -331,8 +384,12 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                             stage=CampaignStage.PRODUCT_ANALYSIS,
                         ),
                         campaign_input=_campaign_input(campaign, product["path"]),
-                    ),
+                    )
+                _checkpoint_video_submission(claim=claim, output=submission)
+                return StageExecution(
+                    output=submission,
                     next_stage=CampaignStage.VIDEO_POLL,
+                    provider_name=str(submission.get("provider", "fal")),
                 )
 
             if claim.stage == CampaignStage.VIDEO_POLL:
@@ -342,18 +399,30 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     stage=CampaignStage.VIDEO_SUBMISSION,
                 )
                 request_id = _required_request_id(submission)
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
                 output = operations.poll_video(request_id=request_id)
                 if output.get("status") == "completed":
                     return StageExecution(
                         output=output,
                         next_stage=CampaignStage.VIDEO_FINALIZE,
+                        provider_name="fal",
+                        provider_metadata=dict(output.get("provider_metadata", {})),
                     )
                 if output.get("status") in {"failed", "cancelled"}:
-                    raise RuntimeError("Video provider returned a terminal failure state.")
+                    raise ProviderStageError(
+                        code="PROVIDER_BAD_RESPONSE",
+                        message="The video provider did not complete the generation request.",
+                        retryable=False,
+                    )
+                poll_attempt = _poll_attempt(stage_run)
+                metadata = dict(output.get("provider_metadata", {}))
+                metadata["poll_attempt"] = poll_attempt
+                output["provider_metadata"] = metadata
                 return StageExecution(
                     output=output,
-                    wait_until=datetime.now(UTC)
-                    + timedelta(seconds=get_settings().video_poll_interval_sec),
+                    wait_until=datetime.now(UTC) + timedelta(seconds=_video_poll_delay(poll_attempt)),
+                    provider_name="fal",
+                    provider_metadata=metadata,
                 )
 
             if claim.stage == CampaignStage.VIDEO_FINALIZE:
@@ -363,6 +432,7 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                     stage=CampaignStage.VIDEO_SUBMISSION,
                 )
                 request_id = _required_request_id(submission)
+                _ensure_campaign_not_cancelled(campaign_id=campaign.id)
                 result = operations.finalize_video(
                     request_id=request_id,
                     output_path=workspace / "campaign.mp4",
@@ -381,6 +451,8 @@ def _execute_stage(claim: ClaimedStage) -> StageExecution:
                         "request_id": request_id,
                     },
                     next_stage=CampaignStage.FINALIZE_CAMPAIGN,
+                    provider_name="fal",
+                    provider_metadata=dict(result.get("provider_metadata", {})),
                 )
 
             if claim.stage == CampaignStage.FINALIZE_CAMPAIGN:
@@ -527,11 +599,26 @@ def _complete_stage(claim: ClaimedStage, execution: StageExecution) -> None:
             if stage_run is None or campaign is None:
                 return
             now = datetime.now(UTC)
+            if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+                _cancel_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=stage_run,
+                    now=now,
+                )
+                return
             stage_run.status = StageStatus.SUCCEEDED.value
             stage_run.output_json = execution.output
             stage_run.completed_at = now
             stage_run.updated_at = now
             stage_run.lease_expires_at = None
+            stage_run.next_attempt_at = None
+            if execution.provider_name is not None:
+                stage_run.provider_name = execution.provider_name
+            if execution.provider_metadata is not None:
+                stage_run.provider_metadata = _sanitize_provider_metadata(
+                    execution.provider_metadata
+                )
             if claim.stage == CampaignStage.VALIDATE_INPUT:
                 _save_validation_metadata(
                     session=session,
@@ -543,8 +630,9 @@ def _complete_stage(claim: ClaimedStage, execution: StageExecution) -> None:
                 stage_run.provider_request_id = _required_request_id(execution.output)
             if claim.stage == CampaignStage.VIDEO_POLL:
                 stage_run.provider_status = str(execution.output.get("status", "unknown"))
-                stage_run.provider_metadata = dict(
-                    execution.output.get("provider_metadata", {})
+                stage_run.provider_metadata = _sanitize_provider_metadata(
+                    execution.provider_metadata
+                    or dict(execution.output.get("provider_metadata", {}))
                 )
             _save_generated_asset(session=session, campaign=campaign, output=execution.output)
             _append_event(
@@ -609,10 +697,22 @@ def _wait_for_external(claim: ClaimedStage, execution: StageExecution) -> None:
             if stage_run is None or campaign is None:
                 return
             now = datetime.now(UTC)
+            if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+                _cancel_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=stage_run,
+                    now=now,
+                )
+                return
             stage_run.status = StageStatus.WAITING_EXTERNAL.value
             stage_run.output_json = execution.output
             stage_run.provider_status = str(execution.output.get("status", "unknown"))
-            stage_run.provider_metadata = dict(execution.output.get("provider_metadata", {}))
+            stage_run.provider_name = execution.provider_name or stage_run.provider_name
+            stage_run.provider_metadata = _sanitize_provider_metadata(
+                execution.provider_metadata
+                or dict(execution.output.get("provider_metadata", {}))
+            )
             stage_run.run_token = None
             stage_run.lease_expires_at = None
             stage_run.next_poll_at = execution.wait_until
@@ -653,6 +753,14 @@ def _fail_stage(
             if stage_run is None or campaign is None:
                 return
             now = datetime.now(UTC)
+            if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+                _cancel_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=stage_run,
+                    now=now,
+                )
+                return
             stage_run.status = StageStatus.FAILED.value
             stage_run.error_code = code
             stage_run.error_message = message
@@ -660,6 +768,7 @@ def _fail_stage(
             stage_run.completed_at = now
             stage_run.updated_at = now
             stage_run.lease_expires_at = None
+            stage_run.run_token = None
             campaign.status = CampaignStatus.FAILED.value
             campaign.error_code = code
             campaign.error_message = message
@@ -674,6 +783,51 @@ def _fail_stage(
                 payload={"stage": PUBLIC_STAGE_BY_STAGE[claim.stage].value, "code": code},
                 now=now,
             )
+            if (
+                retryable
+                and _automatic_retry_permitted(code)
+                and _automatic_retry_available(stage_run)
+            ):
+                next_attempt_at = now + timedelta(
+                    seconds=_retry_delay(stage_run.attempt)
+                )
+                next_run = CampaignStageRun(
+                    id=new_resource_id("stg"),
+                    campaign_id=campaign.id,
+                    stage=stage_run.stage,
+                    attempt=stage_run.attempt + 1,
+                    status=StageStatus.PENDING.value,
+                    next_attempt_at=next_attempt_at,
+                    updated_at=now,
+                )
+                session.add(next_run)
+                session.add(
+                    DispatchOutbox(
+                        id=new_resource_id("obx"),
+                        task_type="campaign.run_stage",
+                        campaign_id=campaign.id,
+                        stage_run_id=next_run.id,
+                        available_at=next_attempt_at,
+                        delivery_attempts=0,
+                        created_at=now,
+                    )
+                )
+                campaign.status = CampaignStatus.QUEUED.value
+                campaign.error_code = None
+                campaign.error_message = None
+                campaign.error_retryable = None
+                campaign.completed_at = None
+                _append_event(
+                    session=session,
+                    campaign_id=campaign.id,
+                    event_type="stage.retry_scheduled",
+                    payload={
+                        "stage": PUBLIC_STAGE_BY_STAGE[claim.stage].value,
+                        "attempt": next_run.attempt,
+                    },
+                    now=now,
+                )
+                return
             _append_event(
                 session=session,
                 campaign_id=campaign.id,
@@ -683,6 +837,373 @@ def _fail_stage(
             )
     finally:
         session.close()
+
+
+@celery_app.task(name="campaign.cancel_video")
+def cancel_video(*, campaign_id: str, stage_run_id: str | None = None) -> dict[str, str]:
+    """Attempt fal cancellation using the persisted submission checkpoint."""
+
+    del stage_run_id
+    session = get_session_factory()()
+    try:
+        campaign = session.get(Campaign, campaign_id)
+        if campaign is None or campaign.status != CampaignStatus.CANCEL_REQUESTED.value:
+            return {"status": "noop"}
+        submission = session.scalar(
+            select(CampaignStageRun)
+            .where(
+                CampaignStageRun.campaign_id == campaign_id,
+                CampaignStageRun.stage == CampaignStage.VIDEO_SUBMISSION.value,
+                CampaignStageRun.provider_request_id.is_not(None),
+            )
+            .order_by(CampaignStageRun.attempt.desc())
+            .limit(1)
+        )
+        if submission is None or not submission.provider_request_id:
+            return {"status": "no_request"}
+        request_id = submission.provider_request_id
+    finally:
+        session.close()
+
+    try:
+        CampaignStageOperations().cancel_video(request_id=request_id)
+    except Exception as exc:
+        logger.warning(
+            "Video cancellation attempt failed campaign_id=%s error_type=%s",
+            campaign_id,
+            type(exc).__name__,
+        )
+        outcome = "failed"
+    else:
+        outcome = "requested"
+
+    session = get_session_factory()()
+    try:
+        with session.begin():
+            campaign_snapshot = session.get(Campaign, campaign_id)
+            if (
+                campaign_snapshot is None
+                or campaign_snapshot.status != CampaignStatus.CANCEL_REQUESTED.value
+            ):
+                return {"status": "noop"}
+            current_run = session.scalar(
+                select(CampaignStageRun)
+                .where(
+                    CampaignStageRun.campaign_id == campaign_id,
+                    CampaignStageRun.stage == campaign_snapshot.current_stage,
+                )
+                .order_by(CampaignStageRun.attempt.desc())
+                .limit(1)
+                .with_for_update()
+            )
+            campaign = session.scalar(
+                select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+            )
+            if campaign is None or campaign.status != CampaignStatus.CANCEL_REQUESTED.value:
+                return {"status": "noop"}
+            submission = session.scalar(
+                select(CampaignStageRun)
+                .where(
+                    CampaignStageRun.campaign_id == campaign_id,
+                    CampaignStageRun.stage == CampaignStage.VIDEO_SUBMISSION.value,
+                    CampaignStageRun.provider_request_id == request_id,
+                )
+                .order_by(CampaignStageRun.attempt.desc())
+                .limit(1)
+                .with_for_update()
+            )
+            if submission is not None:
+                metadata = dict(submission.provider_metadata or {})
+                metadata["cancellation"] = {
+                    "outcome": outcome,
+                    "attempted_at": datetime.now(UTC).isoformat(),
+                }
+                submission.provider_metadata = _sanitize_provider_metadata(metadata)
+                submission.updated_at = datetime.now(UTC)
+
+            if current_run is not None and current_run.status != StageStatus.RUNNING.value:
+                _cancel_stage_in_transaction(
+                    session=session,
+                    campaign=campaign,
+                    stage_run=current_run,
+                    now=datetime.now(UTC),
+                )
+    finally:
+        session.close()
+    return {"status": outcome}
+
+
+def _checkpoint_video_submission(*, claim: ClaimedStage, output: dict[str, Any]) -> None:
+    """Persist the fal ID before continuing to stage completion or polling."""
+
+    request_id = _required_request_id(output)
+    session = get_session_factory()()
+    try:
+        with session.begin():
+            stage_run, campaign = _locked_stage_and_campaign(session, claim)
+            if stage_run is None or campaign is None:
+                return
+            now = datetime.now(UTC)
+            stage_run.output_json = output
+            stage_run.provider_name = str(output.get("provider", "fal"))
+            stage_run.provider_request_id = request_id
+            stage_run.updated_at = now
+            if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+                _enqueue_video_cancellation(session=session, campaign_id=campaign.id, now=now)
+    finally:
+        session.close()
+
+
+def _ensure_campaign_not_cancelled(*, campaign_id: str) -> None:
+    session = get_session_factory()()
+    try:
+        status = session.scalar(select(Campaign.status).where(Campaign.id == campaign_id))
+    finally:
+        session.close()
+    if status == CampaignStatus.CANCEL_REQUESTED.value:
+        raise CampaignCancellationRequested()
+
+
+def _cancel_claimed_stage(claim: ClaimedStage) -> None:
+    session = get_session_factory()()
+    try:
+        with session.begin():
+            stage_run, campaign = _locked_stage_and_campaign(session, claim)
+            if stage_run is None or campaign is None:
+                return
+            _cancel_stage_in_transaction(
+                session=session,
+                campaign=campaign,
+                stage_run=stage_run,
+                now=datetime.now(UTC),
+            )
+    finally:
+        session.close()
+
+
+def _cancel_stage_in_transaction(
+    *,
+    session: Any,
+    campaign: Campaign,
+    stage_run: CampaignStageRun,
+    now: datetime,
+) -> None:
+    stage_run.status = StageStatus.CANCELLED.value
+    stage_run.run_token = None
+    stage_run.lease_expires_at = None
+    stage_run.next_poll_at = None
+    stage_run.next_attempt_at = None
+    stage_run.completed_at = now
+    stage_run.updated_at = now
+    campaign.status = CampaignStatus.CANCELLED.value
+    campaign.completed_at = now
+    campaign.updated_at = now
+    campaign.version += 1
+    _append_event(
+        session=session,
+        campaign_id=campaign.id,
+        event_type="campaign.cancelled",
+        payload=None,
+        now=now,
+    )
+
+
+def _enqueue_video_cancellation(*, session: Any, campaign_id: str, now: datetime) -> None:
+    pending = session.scalar(
+        select(DispatchOutbox.id)
+        .where(
+            DispatchOutbox.campaign_id == campaign_id,
+            DispatchOutbox.task_type == "campaign.cancel_video",
+            DispatchOutbox.dispatched_at.is_(None),
+        )
+        .limit(1)
+    )
+    if pending is None:
+        session.add(
+            DispatchOutbox(
+                id=new_resource_id("obx"),
+                task_type="campaign.cancel_video",
+                campaign_id=campaign_id,
+                stage_run_id=None,
+                available_at=now,
+                delivery_attempts=0,
+                created_at=now,
+            )
+        )
+
+
+def _stage_deadline_exceeded(stage_run: CampaignStageRun, now: datetime) -> bool:
+    if stage_run.started_at is None:
+        return False
+    return now >= stage_run.started_at + timedelta(
+        seconds=_stage_deadline_seconds(stage_run.stage)
+    )
+
+
+def _fail_expired_stage_in_transaction(
+    *,
+    session: Any,
+    campaign: Campaign,
+    stage_run: CampaignStageRun,
+    now: datetime,
+) -> None:
+    stage_run.status = StageStatus.FAILED.value
+    stage_run.run_token = None
+    stage_run.lease_expires_at = None
+    stage_run.completed_at = now
+    stage_run.updated_at = now
+    stage_run.error_code = "STAGE_DEADLINE_EXCEEDED"
+    stage_run.error_message = "The campaign stage exceeded its execution deadline."
+    stage_run.error_retryable = True
+    campaign.status = CampaignStatus.FAILED.value
+    campaign.error_code = stage_run.error_code
+    campaign.error_message = stage_run.error_message
+    campaign.error_retryable = True
+    campaign.completed_at = now
+    campaign.updated_at = now
+    campaign.version += 1
+    _append_event(
+        session=session,
+        campaign_id=campaign.id,
+        event_type="stage.failed",
+        payload={
+            "stage": PUBLIC_STAGE_BY_STAGE[CampaignStage(stage_run.stage)].value,
+            "code": "STAGE_DEADLINE_EXCEEDED",
+        },
+        now=now,
+    )
+    _append_event(
+        session=session,
+        campaign_id=campaign.id,
+        event_type="campaign.failed",
+        payload={"code": "STAGE_DEADLINE_EXCEEDED"},
+        now=now,
+    )
+
+
+def _stage_deadline_seconds(stage: str) -> int:
+    settings = get_settings()
+    campaign_stage = CampaignStage(stage)
+    if campaign_stage == CampaignStage.VALIDATE_INPUT:
+        return settings.input_validation_deadline_sec
+    if campaign_stage in {CampaignStage.PRODUCT_ANALYSIS, CampaignStage.NARRATIVE_STRATEGY}:
+        return settings.planning_stage_deadline_sec
+    if campaign_stage == CampaignStage.STORYBOARD_GENERATION:
+        return settings.storyboard_stage_deadline_sec
+    if campaign_stage == CampaignStage.VIDEO_SUBMISSION:
+        return settings.video_submission_deadline_sec
+    if campaign_stage == CampaignStage.VIDEO_POLL:
+        return settings.video_poll_deadline_sec
+    return settings.video_finalize_deadline_sec
+
+
+def _automatic_retry_available(stage_run: CampaignStageRun) -> bool:
+    settings = get_settings()
+    stage = CampaignStage(stage_run.stage)
+    if stage == CampaignStage.VALIDATE_INPUT:
+        maximum = settings.input_validation_max_attempts
+    elif stage in {CampaignStage.PRODUCT_ANALYSIS, CampaignStage.NARRATIVE_STRATEGY}:
+        maximum = settings.planning_stage_max_attempts
+    elif stage == CampaignStage.STORYBOARD_GENERATION:
+        maximum = settings.storyboard_stage_max_attempts
+    elif stage == CampaignStage.VIDEO_SUBMISSION:
+        maximum = settings.video_submission_max_attempts
+    elif stage == CampaignStage.VIDEO_FINALIZE:
+        maximum = settings.video_finalize_max_attempts
+    else:
+        return False
+    return stage_run.attempt < maximum
+
+
+def _automatic_retry_permitted(code: str) -> bool:
+    return code in {
+        "PROVIDER_RATE_LIMITED",
+        "PROVIDER_UNAVAILABLE",
+        "ARTIFACT_DOWNLOAD_FAILED",
+        "ARTIFACT_UPLOAD_FAILED",
+    }
+
+
+def _retry_delay(attempt: int) -> float:
+    settings = get_settings()
+    delay = min(
+        settings.retry_backoff_max_sec,
+        settings.retry_backoff_min_sec * (2 ** max(0, attempt - 1)),
+    )
+    return delay * random.uniform(
+        1 - settings.retry_jitter_ratio,
+        1 + settings.retry_jitter_ratio,
+    )
+
+
+def _poll_attempt(stage_run: CampaignStageRun) -> int:
+    metadata = stage_run.provider_metadata or {}
+    previous = metadata.get("poll_attempt", 0)
+    return previous + 1 if isinstance(previous, int) and previous >= 0 else 1
+
+
+def _video_poll_delay(poll_attempt: int) -> float:
+    settings = get_settings()
+    delay = min(
+        settings.video_poll_max_sec,
+        settings.video_poll_min_sec * (2 ** max(0, poll_attempt - 1)),
+    )
+    return delay * random.uniform(
+        1 - settings.video_poll_jitter_ratio,
+        1 + settings.video_poll_jitter_ratio,
+    )
+
+
+def _provider_for_stage(stage: CampaignStage) -> str | None:
+    if stage in {CampaignStage.PRODUCT_ANALYSIS, CampaignStage.NARRATIVE_STRATEGY}:
+        return "openai_tinyfish"
+    if stage == CampaignStage.STORYBOARD_GENERATION:
+        return "openai"
+    if stage in {
+        CampaignStage.VIDEO_SUBMISSION,
+        CampaignStage.VIDEO_POLL,
+        CampaignStage.VIDEO_FINALIZE,
+    }:
+        return "fal"
+    return None
+
+
+def _sanitize_provider_metadata(value: dict[str, Any]) -> dict[str, Any]:
+    """Keep bounded primitive diagnostics; omit URLs, prompts, and raw provider bodies."""
+
+    permitted = {
+        "duration_ms",
+        "poll_attempt",
+        "queue_position",
+        "metrics",
+        "usage",
+        "cancellation",
+    }
+    return {
+        key: sanitized
+        for key, item in value.items()
+        if key in permitted
+        if (sanitized := _sanitize_metadata_value(item)) is not None
+    }
+
+
+def _sanitize_metadata_value(value: Any) -> Any | None:
+    if isinstance(value, bool | int | float | str):
+        return value
+    if isinstance(value, dict):
+        sanitized = {
+            str(key): nested
+            for key, item in list(value.items())[:20]
+            if (nested := _sanitize_metadata_value(item)) is not None
+        }
+        return sanitized
+    if isinstance(value, list):
+        return [
+            nested
+            for item in value[:20]
+            if (nested := _sanitize_metadata_value(item)) is not None
+        ]
+    return None
 
 
 def _locked_stage_and_campaign(
@@ -705,6 +1226,12 @@ def _locked_stage_and_campaign(
         select(Campaign).where(Campaign.id == claim.campaign_id).with_for_update()
     )
     if campaign is None or campaign.current_stage != stage_run.stage:
+        return None, None
+    if campaign.status in {
+        CampaignStatus.SUCCEEDED.value,
+        CampaignStatus.FAILED.value,
+        CampaignStatus.CANCELLED.value,
+    }:
         return None, None
     return stage_run, campaign
 

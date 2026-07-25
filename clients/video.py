@@ -25,6 +25,7 @@ class VideoGenerationClientOutput:
     video_url: str
     seed: int | None = None
     request_id: str | None = None
+    provider_metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class VideoGenerationClient:
     status_poll_interval: float = 2.0
     start_timeout: int | float | None = None
     download_timeout: int | float | None = 300
+    max_download_bytes: int = 500 * 1024 * 1024
 
     def __post_init__(self) -> None:
         self.api_key = self.api_key or os.getenv("FAL_KEY")
@@ -103,9 +105,9 @@ class VideoGenerationClient:
         fal = self._fal_client()
 
         try:
-            logger.info(f"Uploading storyboard image to fal CDN: {storyboard_path}")
+            logger.info("Uploading storyboard image to fal CDN.")
             storyboard_url = fal.upload_file(str(storyboard_path))
-            logger.info(f"Uploading product image to fal CDN: {product_path}")
+            logger.info("Uploading product image to fal CDN.")
             product_url = fal.upload_file(str(product_path))
 
             arguments = {
@@ -179,6 +181,9 @@ class VideoGenerationClient:
 
         video_url = self._extract_video_url(result)
         seed = result.get("seed") if isinstance(result, dict) else None
+        provider_metadata: dict[str, Any] = {}
+        if isinstance(result, dict) and isinstance(result.get("usage"), dict):
+            provider_metadata["usage"] = result["usage"]
         self._download_video(video_url=video_url, output_path=destination_path)
 
         return VideoGenerationClientOutput(
@@ -186,7 +191,17 @@ class VideoGenerationClient:
             video_url=video_url,
             seed=seed if isinstance(seed, int) else None,
             request_id=request_id,
+            provider_metadata=provider_metadata,
         )
+
+    def cancel_request(self, *, request_id: str) -> None:
+        """Best-effort cancellation for a durable fal request ID."""
+
+        try:
+            self._fal_client().cancel(self.model_endpoint, request_id)
+        except Exception as exc:
+            raise VideoGenerationClientError("fal video cancellation failed.") from exc
+        logger.info("fal video cancellation requested: request_id=%s", request_id)
 
     def _fal_client(self) -> Any:
         if self.fal_client is not None:
@@ -226,8 +241,18 @@ class VideoGenerationClient:
             with requests.get(video_url, stream=True, timeout=self.download_timeout) as response:
                 response.raise_for_status()
                 with output_path.open("wb") as video_file:
+                    total_bytes = 0
                     for chunk in response.iter_content(chunk_size=1024 * 1024):
                         if chunk:
+                            total_bytes += len(chunk)
+                            if total_bytes > self.max_download_bytes:
+                                raise VideoGenerationClientError(
+                                    "Generated video exceeds the configured size limit."
+                                )
                             video_file.write(chunk)
+                if total_bytes == 0:
+                    raise VideoGenerationClientError("Generated video download was empty.")
+        except VideoGenerationClientError:
+            raise
         except Exception as exc:
             raise VideoGenerationClientError(f"Could not download generated video: {exc}") from exc

@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,14 @@ from api.schemas.campaigns import (
     CreateCampaignRequest,
 )
 from app_config import get_settings
-from domain.enums import CampaignStage, CampaignStatus, PROGRESS_PERCENT_BY_STAGE, PUBLIC_STAGE_BY_STAGE
+from domain.enums import (
+    CampaignStage,
+    CampaignStatus,
+    PROGRESS_PERCENT_BY_STAGE,
+    PUBLIC_STAGE_BY_STAGE,
+    STAGE_ORDER,
+    StageStatus,
+)
 from persistence.ids import new_resource_id
 from persistence.models import Campaign, CampaignEvent, CampaignStageRun, DispatchOutbox, IdempotencyRecord
 from persistence.repositories import AssetRepository, CampaignRepository
@@ -251,6 +259,223 @@ def get_campaign(
     )
 
 
+@router.post("/{campaign_id}/cancel", response_model=CampaignAcceptedResponse)
+def cancel_campaign(
+    campaign_id: str,
+    response: Response,
+    principal: CurrentPrincipal,
+    session: DatabaseSession,
+) -> CampaignAcceptedResponse:
+    campaign = _owned_campaign_or_not_found(
+        campaigns=CampaignRepository(session),
+        campaign_id=campaign_id,
+        principal=principal,
+    )
+    now = datetime.now(UTC)
+    if campaign.status in {CampaignStatus.SUCCEEDED.value, CampaignStatus.FAILED.value}:
+        raise ApiProblem(
+            status=409,
+            code="CAMPAIGN_TERMINAL",
+            title="Campaign is terminal",
+            detail="A completed or failed campaign cannot be cancelled.",
+        )
+    if campaign.status == CampaignStatus.CANCELLED.value:
+        response.status_code = status.HTTP_200_OK
+        return _accepted_response(campaign)
+    if campaign.status == CampaignStatus.CANCEL_REQUESTED.value:
+        response.status_code = status.HTTP_202_ACCEPTED
+        return _accepted_response(campaign)
+
+    current_run = session.scalar(
+        select(CampaignStageRun)
+        .where(
+            CampaignStageRun.campaign_id == campaign.id,
+            CampaignStageRun.stage == campaign.current_stage,
+        )
+        .order_by(CampaignStageRun.attempt.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    video_request_id = _video_request_id(session=session, campaign_id=campaign.id)
+    if current_run is None or current_run.status != StageStatus.RUNNING.value:
+        if video_request_id is not None:
+            campaign.status = CampaignStatus.CANCEL_REQUESTED.value
+            campaign.cancel_requested_at = now
+            campaign.updated_at = now
+            campaign.version += 1
+            _append_campaign_event(
+                session=session,
+                campaign_id=campaign.id,
+                event_type="campaign.cancel_requested",
+                payload=None,
+                now=now,
+            )
+            _enqueue_video_cancellation(session=session, campaign_id=campaign.id, now=now)
+            response.status_code = status.HTTP_202_ACCEPTED
+        else:
+            _cancel_without_active_work(
+                session=session,
+                campaign=campaign,
+                current_run=current_run,
+                now=now,
+            )
+            response.status_code = status.HTTP_200_OK
+    else:
+        campaign.status = CampaignStatus.CANCEL_REQUESTED.value
+        campaign.cancel_requested_at = now
+        campaign.updated_at = now
+        campaign.version += 1
+        _append_campaign_event(
+            session=session,
+            campaign_id=campaign.id,
+            event_type="campaign.cancel_requested",
+            payload=None,
+            now=now,
+        )
+        if video_request_id is not None:
+            _enqueue_video_cancellation(session=session, campaign_id=campaign.id, now=now)
+        response.status_code = status.HTTP_202_ACCEPTED
+    session.commit()
+    return _accepted_response(campaign)
+
+
+@router.post("/{campaign_id}/retry", response_model=CampaignAcceptedResponse)
+def retry_campaign(
+    campaign_id: str,
+    response: Response,
+    idempotency_key: IdempotencyKey,
+    principal: CurrentPrincipal,
+    session: DatabaseSession,
+) -> CampaignAcceptedResponse:
+    if idempotency_key != idempotency_key.strip():
+        raise ApiProblem(
+            status=422,
+            code="VALIDATION_ERROR",
+            title="Request validation failed",
+            detail="Idempotency-Key must not include surrounding whitespace.",
+        )
+    campaign = _owned_campaign_or_not_found(
+        campaigns=CampaignRepository(session),
+        campaign_id=campaign_id,
+        principal=principal,
+    )
+    route = f"{_campaign_path(campaign.id)}/retry"
+    retry_hash = _retry_request_hash(campaign.id)
+    existing = CampaignRepository(session).get_idempotency_record(
+        tenant_id=principal.tenant_id,
+        route=route,
+        idempotency_key=idempotency_key,
+    )
+    if existing is not None:
+        if existing.request_hash != retry_hash:
+            raise ApiProblem(
+                status=409,
+                code="IDEMPOTENCY_KEY_REUSED",
+                title="Idempotency key was reused",
+                detail="Use a new Idempotency-Key for a different retry request.",
+            )
+        response.status_code = status.HTTP_200_OK
+        return _accepted_response(campaign)
+
+    if campaign.status != CampaignStatus.FAILED.value or not campaign.error_retryable:
+        raise ApiProblem(
+            status=409,
+            code="INVALID_CAMPAIGN_STATE",
+            title="Campaign cannot be retried",
+            detail="Only retryable failed campaigns can be retried.",
+        )
+
+    stage, attempt = _first_incomplete_stage(session=session, campaign_id=campaign.id)
+    if stage is None:
+        raise ApiProblem(
+            status=409,
+            code="INVALID_CAMPAIGN_STATE",
+            title="Campaign cannot be retried",
+            detail="The campaign has no incomplete stage to retry.",
+        )
+    now = datetime.now(UTC)
+    stage_run = CampaignStageRun(
+        id=new_resource_id("stg"),
+        campaign_id=campaign.id,
+        stage=stage.value,
+        attempt=attempt + 1,
+        status=StageStatus.PENDING.value,
+        updated_at=now,
+    )
+    session.add(stage_run)
+    session.add(
+        DispatchOutbox(
+            id=new_resource_id("obx"),
+            task_type="campaign.run_stage",
+            campaign_id=campaign.id,
+            stage_run_id=stage_run.id,
+            available_at=now,
+            delivery_attempts=0,
+            created_at=now,
+        )
+    )
+    session.add(
+        IdempotencyRecord(
+            id=new_resource_id("idr"),
+            tenant_id=principal.tenant_id,
+            route=route,
+            idempotency_key=idempotency_key,
+            request_hash=retry_hash,
+            campaign_id=campaign.id,
+            response_status=status.HTTP_202_ACCEPTED,
+            created_at=now,
+            expires_at=now + timedelta(seconds=get_settings().idempotency_retention_sec),
+        )
+    )
+    campaign.status = CampaignStatus.QUEUED.value
+    campaign.current_stage = stage.value
+    campaign.retry_count += 1
+    campaign.error_code = None
+    campaign.error_message = None
+    campaign.error_retryable = None
+    campaign.completed_at = None
+    campaign.updated_at = now
+    campaign.version += 1
+    _append_campaign_event(
+        session=session,
+        campaign_id=campaign.id,
+        event_type="stage.retry_scheduled",
+        payload={
+            "stage": _public_stage(stage.value),
+            "attempt": stage_run.attempt,
+            "manual": True,
+        },
+        now=now,
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = CampaignRepository(session).get_idempotency_record(
+            tenant_id=principal.tenant_id,
+            route=route,
+            idempotency_key=idempotency_key,
+        )
+        if existing is None or existing.request_hash != retry_hash:
+            logger.exception("Could not accept the campaign retry due to a database constraint.")
+            raise ApiProblem(
+                status=503,
+                code="SERVICE_UNAVAILABLE",
+                title="Campaign service unavailable",
+                detail="The campaign retry could not be accepted. Please retry.",
+            )
+        campaign = _owned_campaign_or_not_found(
+            campaigns=CampaignRepository(session),
+            campaign_id=campaign_id,
+            principal=principal,
+        )
+        response.status_code = status.HTTP_200_OK
+        return _accepted_response(campaign)
+    response.status_code = status.HTTP_202_ACCEPTED
+    response.headers["Location"] = _campaign_path(campaign.id)
+    return _accepted_response(campaign)
+
+
 def _idempotent_replay(
     *,
     record: IdempotencyRecord,
@@ -442,6 +667,128 @@ def _provider_config_snapshot(request: CreateCampaignRequest) -> dict[str, objec
             "aspect_ratio": request.aspect_ratio,
         },
     }
+
+
+def _cancel_without_active_work(
+    *,
+    session: Session,
+    campaign: Campaign,
+    current_run: CampaignStageRun | None,
+    now: datetime,
+) -> None:
+    if current_run is not None:
+        current_run.status = StageStatus.CANCELLED.value
+        current_run.run_token = None
+        current_run.lease_expires_at = None
+        current_run.next_poll_at = None
+        current_run.next_attempt_at = None
+        current_run.completed_at = now
+        current_run.updated_at = now
+    campaign.status = CampaignStatus.CANCELLED.value
+    campaign.cancel_requested_at = now
+    campaign.completed_at = now
+    campaign.updated_at = now
+    campaign.version += 1
+    _append_campaign_event(
+        session=session,
+        campaign_id=campaign.id,
+        event_type="campaign.cancelled",
+        payload=None,
+        now=now,
+    )
+
+
+def _video_request_id(*, session: Session, campaign_id: str) -> str | None:
+    return session.scalar(
+        select(CampaignStageRun.provider_request_id)
+        .where(
+            CampaignStageRun.campaign_id == campaign_id,
+            CampaignStageRun.stage == CampaignStage.VIDEO_SUBMISSION.value,
+            CampaignStageRun.provider_request_id.is_not(None),
+        )
+        .order_by(CampaignStageRun.attempt.desc())
+        .limit(1)
+    )
+
+
+def _enqueue_video_cancellation(*, session: Session, campaign_id: str, now: datetime) -> None:
+    pending = session.scalar(
+        select(DispatchOutbox.id)
+        .where(
+            DispatchOutbox.campaign_id == campaign_id,
+            DispatchOutbox.task_type == "campaign.cancel_video",
+            DispatchOutbox.dispatched_at.is_(None),
+        )
+        .limit(1)
+    )
+    if pending is None:
+        session.add(
+            DispatchOutbox(
+                id=new_resource_id("obx"),
+                task_type="campaign.cancel_video",
+                campaign_id=campaign_id,
+                stage_run_id=None,
+                available_at=now,
+                delivery_attempts=0,
+                created_at=now,
+            )
+        )
+
+
+def _first_incomplete_stage(
+    *,
+    session: Session,
+    campaign_id: str,
+) -> tuple[CampaignStage | None, int]:
+    for stage in STAGE_ORDER:
+        succeeded = session.scalar(
+            select(CampaignStageRun.id)
+            .where(
+                CampaignStageRun.campaign_id == campaign_id,
+                CampaignStageRun.stage == stage.value,
+                CampaignStageRun.status == StageStatus.SUCCEEDED.value,
+            )
+            .limit(1)
+        )
+        if succeeded is not None:
+            continue
+        latest_attempt = session.scalar(
+            select(func.max(CampaignStageRun.attempt)).where(
+                CampaignStageRun.campaign_id == campaign_id,
+                CampaignStageRun.stage == stage.value,
+            )
+        )
+        return stage, int(latest_attempt or 0)
+    return None, 0
+
+
+def _append_campaign_event(
+    *,
+    session: Session,
+    campaign_id: str,
+    event_type: str,
+    payload: dict[str, object] | None,
+    now: datetime,
+) -> None:
+    last_sequence = session.scalar(
+        select(func.max(CampaignEvent.sequence)).where(
+            CampaignEvent.campaign_id == campaign_id
+        )
+    )
+    session.add(
+        CampaignEvent(
+            id=new_resource_id("evt"),
+            campaign_id=campaign_id,
+            sequence=int(last_sequence or 0) + 1,
+            event_type=event_type,
+            payload=payload,
+            created_at=now,
+        )
+    )
+
+
+def _retry_request_hash(campaign_id: str) -> str:
+    return hashlib.sha256(f"retry:{campaign_id}".encode("utf-8")).hexdigest()
 
 
 def _encode_cursor(campaign: Campaign) -> str:

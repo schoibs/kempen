@@ -7,7 +7,7 @@ import threading
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app_config import get_settings
 from domain.enums import CampaignStage, CampaignStatus, StageStatus
@@ -95,7 +95,7 @@ class Dispatcher:
         return published
 
     def reconcile(self, *, limit: int = 50) -> int:
-        """Requeue due, unclaimed stages whose last published message may be lost."""
+        """Requeue due work and expired stage leases whose delivery may be lost."""
 
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=self.settings.dispatcher_reconcile_after_sec)
@@ -108,14 +108,26 @@ class Dispatcher:
                     .join(Campaign, Campaign.id == CampaignStageRun.campaign_id)
                     .where(
                         Campaign.status.in_(
-                            [CampaignStatus.QUEUED.value, CampaignStatus.RUNNING.value]
+                            [
+                                CampaignStatus.QUEUED.value,
+                                CampaignStatus.RUNNING.value,
+                                CampaignStatus.CANCEL_REQUESTED.value,
+                            ]
                         ),
                         Campaign.current_stage == CampaignStageRun.stage,
-                        CampaignStageRun.status.in_(
-                            [StageStatus.PENDING.value, StageStatus.WAITING_EXTERNAL.value]
+                        or_(
+                            CampaignStageRun.status == StageStatus.PENDING.value,
+                            (
+                                CampaignStageRun.status == StageStatus.WAITING_EXTERNAL.value,
+                                (CampaignStageRun.next_poll_at.is_(None))
+                                | (CampaignStageRun.next_poll_at <= now),
+                            ),
+                            (
+                                CampaignStageRun.status == StageStatus.RUNNING.value,
+                                (CampaignStageRun.lease_expires_at.is_(None))
+                                | (CampaignStageRun.lease_expires_at <= now),
+                            ),
                         ),
-                        (CampaignStageRun.next_poll_at.is_(None))
-                        | (CampaignStageRun.next_poll_at <= now),
                     )
                     .order_by(CampaignStageRun.updated_at, CampaignStageRun.id)
                     .limit(limit)

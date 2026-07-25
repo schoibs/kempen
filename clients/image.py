@@ -20,6 +20,7 @@ class ImageGenerationClient:
     model: str = "gpt-image-2"
     api_key: str | None = None
     timeout: float | None = 180
+    max_retries: int = 0
     _client: OpenAI = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -28,7 +29,11 @@ class ImageGenerationClient:
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY is required for ImageGenerationClient.")
 
-        self._client = OpenAI(api_key=self.api_key, timeout=self.timeout)
+        self._client = OpenAI(
+            api_key=self.api_key,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+        )
 
     def edit_with_reference(
         self,

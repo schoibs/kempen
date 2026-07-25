@@ -191,9 +191,16 @@ class CampaignStageOperations:
                 "video_url": output.video_url,
                 "seed": output.seed,
                 "request_id": output.request_id,
+                "provider_metadata": output.provider_metadata or {},
             },
             "Video output",
         )
+
+    def cancel_video(self, *, request_id: str) -> None:
+        if self.fake_provider_mode:
+            self._simulate_fake_provider("video_cancel")
+            return
+        self._video_generator_service().cancel(request_id=request_id)
 
     def run_synchronously(
         self,
