@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -54,7 +53,6 @@ class VideoGeneratorService:
     default_model_endpoint = "bytedance/seedance-2.0/reference-to-video"
     default_resolution = "720p"
     default_generate_audio = True
-    default_output_path = Path("assets/generated/campaign_video.mp4")
 
     supported_durations = [str(duration) for duration in range(4, 16)]
     supported_aspect_ratios = ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
@@ -70,30 +68,6 @@ class VideoGeneratorService:
         self.resolution = resolution
         self.generate_audio = generate_audio
         self.video_client = video_client
-
-    def run(
-        self,
-        storyboard_image_path: str | Path,
-        product_image_path: str | Path,
-        product_analysis: dict[str, Any],
-        campaign_input: Any,
-        output_path: str | Path | None = None,
-    ) -> VideoGeneratorServiceOutput:
-        submission = self.submit(
-            storyboard_image_path=storyboard_image_path,
-            product_image_path=product_image_path,
-            product_analysis=product_analysis,
-            campaign_input=campaign_input,
-        )
-        while True:
-            poll = self.poll(request_id=submission.request_id)
-            if poll.status == "completed":
-                break
-            time.sleep(self._video_client().status_poll_interval)
-        return self.finalize(
-            request_id=submission.request_id,
-            output_path=output_path or self.default_output_path,
-        )
 
     def submit(
         self,

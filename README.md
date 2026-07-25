@@ -20,15 +20,11 @@ reference-guided storyboard image
 reference-guided campaign video
 ```
 
-Kempen has two execution paths:
-
-- `main.py` runs the pipeline synchronously and writes generated files locally.
-- `api/app.py` exposes an asynchronous FastAPI API backed by PostgreSQL, Redis/Celery, and S3-compatible object storage.
 
 ## Prerequisites
 
 - Python 3.10 or later
-- Docker with Compose, for the asynchronous API
+- Docker with Compose
 - OpenAI, TinyFish, and fal.ai credentials only when using real providers
 
 ## Python setup
@@ -43,42 +39,7 @@ pip install -r requirements.txt
 
 Configuration is loaded from an optional `.env` file in the repository root. The built-in local defaults enable fake providers and point infrastructure clients at the services in `compose.yaml`.
 
-## Run the synchronous sample
-
-The sample in [`main.py`](main.py) uses [`assets/prime.png`](assets/prime.png):
-
-```bash
-python main.py
-```
-
-In the default fake-provider mode, this produces deterministic placeholder artifacts without contacting OpenAI, TinyFish, or fal.ai. The outputs overwrite:
-
-- `assets/generated/storyboard_sheet.png`
-- `assets/generated/campaign_video.mp4`
-
-To customize the campaign, edit the sample or import the pipeline:
-
-```python
-from domain.campaigns import CampaignInput
-from main import CampaignAgentPipeline
-
-pipeline = CampaignAgentPipeline(
-    CampaignInput(
-        product_image_path="assets/my-product.png",
-        campaign_theme="bright, sunny, and fun",
-        target_audience="young adults who love summer festivals",
-        target_duration_sec=15,
-        aspect_ratio="9:16",
-    )
-)
-
-result = pipeline.run()
-print(result["video"].video_path)
-```
-
-Video duration must be a whole number of seconds from `4` through `15`. Supported aspect ratios are `auto`, `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, and `9:16`.
-
-## Run the asynchronous API
+## Run the API
 
 Start PostgreSQL, Redis, and MinIO, then apply the database migrations:
 
@@ -137,6 +98,8 @@ Campaign endpoints also support cursor-based listing, cancellation, and retrying
 | `GET` | `/v1/assets/{asset_id}/download` | Create a short-lived download URL for a ready asset |
 
 Uploaded and generated files remain in the configured private object-storage bucket. API responses provide short-lived presigned URLs rather than server-local paths. Authentication is currently disabled by default, and local requests use a fixed development principal.
+
+Video duration must be a whole number of seconds from `4` through `15`. Supported aspect ratios are `auto`, `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, and `9:16`.
 
 ## Configuration
 

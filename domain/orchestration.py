@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import json
 import shutil
-import tempfile
 import time
 import uuid
 
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from app_config import get_settings
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
@@ -38,13 +36,6 @@ class CampaignStageOperations:
         self._narrative_agent = narrative_agent
         self._storyboard_service = storyboard_service
         self._video_service = video_service
-
-    @contextmanager
-    def job_directory(self) -> Iterator[Path]:
-        """Create and clean a task-local workspace for resolved input files."""
-
-        with tempfile.TemporaryDirectory(prefix="campaign-job-") as directory:
-            yield Path(directory)
 
     def analyze_product(self, *, product_image_path: str | Path) -> dict[str, Any]:
         image_path = self._require_file(product_image_path, "Product image")
@@ -202,66 +193,6 @@ class CampaignStageOperations:
             return
         self._video_generator_service().cancel(request_id=request_id)
 
-    def run_synchronously(
-        self,
-        campaign_input: CampaignInput,
-        *,
-        storyboard_output_path: str | Path,
-        video_output_path: str | Path,
-    ) -> dict[str, Any]:
-        """Local adapter over the stage operations; workers call operations individually."""
-
-        with self.job_directory() as job_directory:
-            resolved_input_path = self._copy_input_to_job_directory(
-                campaign_input.product_image_path,
-                job_directory,
-            )
-            resolved_input = CampaignInput(
-                product_image_path=str(resolved_input_path),
-                campaign_theme=campaign_input.campaign_theme,
-                target_audience=campaign_input.target_audience,
-                target_duration_sec=campaign_input.target_duration_sec,
-                aspect_ratio=campaign_input.aspect_ratio,
-            )
-            product_analysis = self.analyze_product(
-                product_image_path=resolved_input.product_image_path,
-            )
-            narrative_strategy = self.build_narrative(
-                product_analysis=product_analysis,
-                campaign_input=resolved_input,
-            )
-            storyboard = self.generate_storyboard(
-                product_image_path=resolved_input.product_image_path,
-                product_analysis=product_analysis,
-                narrative_strategy=narrative_strategy,
-                campaign_input=resolved_input,
-                output_path=storyboard_output_path,
-            )
-            video_submission = self.submit_video(
-                storyboard_image_path=storyboard["image_path"],
-                product_image_path=resolved_input.product_image_path,
-                product_analysis=product_analysis,
-                campaign_input=resolved_input,
-            )
-            request_id = str(video_submission["request_id"])
-            while True:
-                video_poll = self.poll_video(request_id=request_id)
-                if video_poll["status"] == "completed":
-                    break
-                time.sleep(2)
-            video = self.finalize_video(
-                request_id=request_id,
-                output_path=video_output_path,
-            )
-
-        return {
-            "input": campaign_input.to_dict(),
-            "product_analysis": product_analysis,
-            "narrative_strategy": narrative_strategy,
-            "storyboard": storyboard,
-            "video": video,
-        }
-
     def _product_analysis_agent(self) -> ProductAnalysisAgent:
         if self._product_agent is None:
             self._product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
@@ -290,13 +221,6 @@ class CampaignStageOperations:
             time.sleep(settings.fake_provider_latency_sec)
         if settings.fake_provider_failure_stage == stage:
             raise RuntimeError(f"Fake provider configured to fail at {stage}.")
-
-    @staticmethod
-    def _copy_input_to_job_directory(source_path: str | Path, job_directory: Path) -> Path:
-        source = CampaignStageOperations._require_file(source_path, "Product image")
-        destination = job_directory / f"product-input{source.suffix.lower()}"
-        shutil.copyfile(source, destination)
-        return destination
 
     @staticmethod
     def _require_file(path: str | Path, label: str) -> Path:

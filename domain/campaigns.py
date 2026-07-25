@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -13,6 +12,3 @@ class CampaignInput:
     target_audience: str
     target_duration_sec: int = 15
     aspect_ratio: str = "9:16"
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
