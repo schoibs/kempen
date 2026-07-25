@@ -27,7 +27,7 @@ reference-guided campaign video
 - Python 3.10 or later
 - API credentials for OpenAI, TinyFish, and fal.ai
 
-All stages make external API requests and may incur provider charges.
+Real-provider stages make external API requests and may incur provider charges.
 
 ## Setup
 
@@ -59,6 +59,11 @@ The sample in [`main.py`](main.py) uses [`assets/prime.png`](assets/prime.png):
 ```bash
 python main.py
 ```
+
+Local development defaults to fake-provider mode, which produces deterministic
+placeholder artifacts without contacting OpenAI, TinyFish, or fal.ai. To make a
+real run, set `CAMPAIGN_FAKE_PROVIDER_MODE=false` and provide all three provider
+credentials in `.env`.
 
 On success, the default generated assets are written to:
 

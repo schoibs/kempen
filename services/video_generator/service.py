@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -8,7 +9,12 @@ from typing import Any
 
 from httpx import request
 
-from clients import VideoGenerationClient, VideoGenerationClientError
+from clients import (
+    VideoGenerationClient,
+    VideoGenerationClientError,
+    VideoGenerationPollOutput,
+    VideoGenerationSubmission,
+)
 
 from .prompt import build_video_prompt
 
@@ -26,6 +32,18 @@ class VideoGeneratorServiceOutput:
     video_url: str
     seed: int | None = None
     request_id: str | None = None
+
+
+@dataclass(frozen=True)
+class VideoGeneratorServiceSubmissionOutput:
+    request_id: str
+
+
+@dataclass(frozen=True)
+class VideoGeneratorServicePollOutput:
+    request_id: str
+    status: str
+    provider_metadata: dict[str, Any]
 
 
 class VideoGeneratorService:
@@ -59,52 +77,79 @@ class VideoGeneratorService:
         campaign_input: Any,
         output_path: str | Path | None = None,
     ) -> VideoGeneratorServiceOutput:
+        submission = self.submit(
+            storyboard_image_path=storyboard_image_path,
+            product_image_path=product_image_path,
+            product_analysis=product_analysis,
+            campaign_input=campaign_input,
+        )
+        while True:
+            poll = self.poll(request_id=submission.request_id)
+            if poll.status == "completed":
+                break
+            time.sleep(self._video_client().status_poll_interval)
+        return self.finalize(
+            request_id=submission.request_id,
+            output_path=output_path or self.default_output_path,
+        )
 
-        # TODO: to remove this comment
-        # return VideoGeneratorServiceOutput(
-        #     video_path="assets/generated/campaign_video.mp4",
-        #     video_url="xxx",
-        #     seed=67,
-        #     request_id="xxx"
-        # )
-
+    def submit(
+        self,
+        *,
+        storyboard_image_path: str | Path,
+        product_image_path: str | Path,
+        product_analysis: dict[str, Any],
+        campaign_input: Any,
+    ) -> VideoGeneratorServiceSubmissionOutput:
         campaign_input_dict = self._campaign_input_to_dict(campaign_input)
-        output_path = Path(output_path or self.default_output_path)
-
-        duration = str(campaign_input_dict.get("target_duration_sec", 15))
-        aspect_ratio = str(campaign_input_dict.get("aspect_ratio", "9:16"))
-        
-        if duration not in self.supported_durations:
-            raise ValueError(
-                "Seedance reference-to-video duration must be an integer from 4 through 15 seconds, "
-                f"got {duration!r}."
-            )
-        if aspect_ratio not in self.supported_aspect_ratios:
-            supported = ", ".join(sorted(self.supported_aspect_ratios))
-            raise ValueError(
-                f"Seedance reference-to-video aspect_ratio must be one of {supported}, got {aspect_ratio}."
-            )
-
+        duration, aspect_ratio = self._validate_settings(campaign_input_dict)
         prompt = build_video_prompt(
             product_analysis=product_analysis,
             campaign_input=campaign_input_dict,
         )
 
-        logger.info(f"Generating campaign video at {output_path}")
+        logger.info("Submitting campaign video generation request.")
         try:
-            generated_video = self._video_client().generate_from_references(
+            submission: VideoGenerationSubmission = self._video_client().submit_from_references(
                 storyboard_image_path=storyboard_image_path,
                 product_image_path=product_image_path,
                 prompt=prompt,
-                output_path=output_path,
                 resolution=self.resolution,
                 duration=duration,
                 aspect_ratio=aspect_ratio,
                 generate_audio=self.generate_audio,
             )
-        except (VideoGenerationClientError, Exception) as exc:
-            raise VideoGeneratorServiceError(f"Video generation failed: {exc}") from exc
+        except (VideoGenerationClientError, OSError, ValueError) as exc:
+            raise VideoGeneratorServiceError(f"Video submission failed: {exc}") from exc
+        return VideoGeneratorServiceSubmissionOutput(request_id=submission.request_id)
 
+    def poll(self, *, request_id: str) -> VideoGeneratorServicePollOutput:
+        try:
+            poll: VideoGenerationPollOutput = self._video_client().poll_request(
+                request_id=request_id,
+            )
+        except VideoGenerationClientError as exc:
+            raise VideoGeneratorServiceError(f"Video status request failed: {exc}") from exc
+        return VideoGeneratorServicePollOutput(
+            request_id=poll.request_id,
+            status=poll.status,
+            provider_metadata=poll.provider_metadata,
+        )
+
+    def finalize(
+        self,
+        *,
+        request_id: str,
+        output_path: str | Path,
+    ) -> VideoGeneratorServiceOutput:
+        logger.info("Finalizing campaign video at %s", output_path)
+        try:
+            generated_video = self._video_client().finalize_request(
+                request_id=request_id,
+                output_path=output_path,
+            )
+        except (VideoGenerationClientError, OSError, ValueError) as exc:
+            raise VideoGeneratorServiceError(f"Video finalization failed: {exc}") from exc
         return VideoGeneratorServiceOutput(
             video_path=generated_video.video_path,
             video_url=generated_video.video_url,
@@ -116,6 +161,24 @@ class VideoGeneratorService:
         if self.video_client is None:
             self.video_client = VideoGenerationClient(model_endpoint=self.model_endpoint)
         return self.video_client
+
+    def _validate_settings(
+        self,
+        campaign_input_dict: dict[str, Any],
+    ) -> tuple[str, str]:
+        duration = str(campaign_input_dict.get("target_duration_sec", 15))
+        aspect_ratio = str(campaign_input_dict.get("aspect_ratio", "9:16"))
+        if duration not in self.supported_durations:
+            raise ValueError(
+                "Seedance reference-to-video duration must be an integer from 4 through 15 seconds, "
+                f"got {duration!r}."
+            )
+        if aspect_ratio not in self.supported_aspect_ratios:
+            supported = ", ".join(sorted(self.supported_aspect_ratios))
+            raise ValueError(
+                f"Seedance reference-to-video aspect_ratio must be one of {supported}, got {aspect_ratio}."
+            )
+        return duration, aspect_ratio
 
 
     @staticmethod

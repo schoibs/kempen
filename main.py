@@ -2,85 +2,46 @@ from __future__ import annotations
 
 import logging
 
-from dataclasses import asdict, dataclass
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import Any
 
+from domain.campaigns import CampaignInput
+from domain.orchestration import CampaignStageOperations
 from logging_config import configure_logging 
-from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
-from services import StoryboardGeneratorService, VideoGeneratorService
+from services import StoryboardGeneratorServiceOutput, VideoGeneratorServiceOutput
 
 
 load_dotenv()
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class CampaignInput:
-    product_image_path: str
-    campaign_theme: str
-    target_audience: str
-    target_duration_sec: int = 15
-    aspect_ratio: str = "9:16"
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+LOCAL_STORYBOARD_OUTPUT_PATH = Path("assets/generated/storyboard_sheet.png")
+LOCAL_VIDEO_OUTPUT_PATH = Path("assets/generated/campaign_video.mp4")
 
 
 class CampaignAgentPipeline:
     """Run campaign planning agents for a campaign brief."""
 
-    def __init__(self, campaign_input: CampaignInput) -> None:
+    def __init__(
+        self,
+        campaign_input: CampaignInput,
+        operations: CampaignStageOperations | None = None,
+    ) -> None:
         self.campaign_input = campaign_input
-        self.product_agent = ProductAnalysisAgent(model="gpt-5.4-mini")
-        self.narrative_agent = NarrativeStrategistAgent(model="gpt-5.4-mini")
-        self.storyboard_service = StoryboardGeneratorService(model="gpt-image-2")
-        self.video_service = VideoGeneratorService()
+        self.operations = operations or CampaignStageOperations()
 
     def run(self) -> dict[str, Any]:
-        logger.info("Pipeline initialized...")
-        campaign_input = self.campaign_input
-
-        logger.info(f"Campaign inputs: {campaign_input}")
-
-        product_analysis = self.product_agent.run(
-            product_image_path=campaign_input.product_image_path
+        logger.info("Campaign pipeline started.")
+        result = self.operations.run_synchronously(
+            self.campaign_input,
+            storyboard_output_path=LOCAL_STORYBOARD_OUTPUT_PATH,
+            video_output_path=LOCAL_VIDEO_OUTPUT_PATH,
         )
-
-        logger.info(f"{product_analysis=}")
-
-        narrative_strategy = self.narrative_agent.run(
-            product_analysis=product_analysis,
-            campaign_theme=campaign_input.campaign_theme,
-            target_duration_sec=campaign_input.target_duration_sec,
-            target_audience=campaign_input.target_audience,
-        )
-
-        logger.info(f"{narrative_strategy=}")
-
-        storyboard = self.storyboard_service.run(
-            product_image_path=campaign_input.product_image_path,
-            product_analysis=product_analysis,
-            narrative_strategy=narrative_strategy,
-            campaign_input=campaign_input,
-        )
-
-        logger.info(f"{storyboard=}")
-
-        video = self.video_service.run(
-            storyboard_image_path=storyboard.image_path,
-            product_image_path=campaign_input.product_image_path,
-            product_analysis=product_analysis,
-            campaign_input=campaign_input,
-        )
-
-        logger.info(f"{video=}")
         return {
-            "input": campaign_input.to_dict(),
-            "product_analysis": product_analysis,
-            "narrative_strategy": narrative_strategy,
-            "storyboard": storyboard,
-            "video": video,
+            "input": result["input"],
+            "product_analysis": result["product_analysis"],
+            "narrative_strategy": result["narrative_strategy"],
+            "storyboard": StoryboardGeneratorServiceOutput(**result["storyboard"]),
+            "video": VideoGeneratorServiceOutput(**result["video"]),
         }
 
 
