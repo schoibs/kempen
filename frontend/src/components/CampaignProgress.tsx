@@ -21,7 +21,9 @@ export function StatusBadge({ status }: Pick<CampaignSummaryResponse, "status">)
 }
 
 export function CampaignProgress({ campaign, compact = false }: CampaignProgressProps) {
-  const progress = clampProgress(campaign.progress_percent);
+  const progress = campaign.status === "succeeded"
+    ? 100
+    : clampProgress(campaign.progress_percent);
   const completedStages = Number.isFinite(campaign.completed_stages)
     ? campaign.completed_stages
     : 0;

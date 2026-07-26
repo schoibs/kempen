@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { CampaignProgress, StatusBadge } from "@/components/CampaignProgress";
 import { CampaignResults } from "@/components/CampaignResults";
 import { useCampaignPolling } from "@/hooks/useCampaignPolling";
+import { ApiClientError } from "@/lib/api/client";
+import { cancelCampaign, retryCampaign } from "@/lib/api/campaigns";
+import type { CampaignDetailResponse } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 
 export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
@@ -16,8 +19,14 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
     retryDelaySeconds,
     fatalState,
     refresh,
+    applyAcceptedCampaign,
   } = useCampaignPolling(campaignId);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<"cancel" | "retry" | null>(null);
+  const cancelDialogRef = useRef<HTMLDialogElement>(null);
+  const retryIdempotencyKeyRef = useRef<string | null>(null);
 
   async function copyCampaignId() {
     try {
@@ -25,6 +34,54 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
       setCopyMessage("Campaign ID copied.");
     } catch {
       setCopyMessage("Could not copy the campaign ID.");
+    }
+  }
+
+  async function handleCancel() {
+    setActiveAction("cancel");
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const accepted = await cancelCampaign(campaignId);
+      applyAcceptedCampaign(accepted);
+      setActionMessage(
+        accepted.status === "cancelled"
+          ? "Campaign cancelled."
+          : "Cancellation requested. Updates will continue until processing stops.",
+      );
+      await refresh();
+    } catch (error) {
+      setActionError(actionErrorMessage(error, "The campaign could not be cancelled."));
+      if (isStaleActionError(error)) {
+        await refresh();
+      }
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleRetry() {
+    const idempotencyKey = retryIdempotencyKeyRef.current ?? crypto.randomUUID();
+    retryIdempotencyKeyRef.current = idempotencyKey;
+    setActiveAction("retry");
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const accepted = await retryCampaign(campaignId, idempotencyKey);
+      retryIdempotencyKeyRef.current = null;
+      applyAcceptedCampaign(accepted);
+      setActionMessage("Retry accepted. Generation is continuing from the last completed checkpoint.");
+      await refresh();
+    } catch (error) {
+      if (!isAmbiguousRetryError(error)) {
+        retryIdempotencyKeyRef.current = null;
+      }
+      setActionError(actionErrorMessage(error, "The campaign retry could not be confirmed."));
+      if (isStaleActionError(error)) {
+        await refresh();
+      }
+    } finally {
+      setActiveAction(null);
     }
   }
 
@@ -45,7 +102,7 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
       <DetailError
         title="We couldn’t load this campaign"
         message={errorMessage ?? "The campaign service is temporarily unavailable."}
-        action={<button className="button button-primary" type="button" onClick={refresh}>Try again</button>}
+        action={<button className="button button-primary" type="button" onClick={() => void refresh()}>Try again</button>}
       />
     );
   }
@@ -68,7 +125,27 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
               {retryDelaySeconds ? ` Retrying in ${retryDelaySeconds} seconds.` : ""}
             </p>
           </div>
-          <button type="button" className="text-button" onClick={refresh}>Try now</button>
+          <button type="button" className="text-button" onClick={() => void refresh()}>Try now</button>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="notice notice-error" role="alert">
+          <div>
+            <strong>Action not completed.</strong>
+            <p>{actionError}</p>
+          </div>
+          <button type="button" className="text-button" onClick={() => setActionError(null)}>Dismiss</button>
+        </div>
+      )}
+
+      {actionMessage && (
+        <div className="notice notice-success" role="status">
+          <div>
+            <strong>Campaign updated.</strong>
+            <p>{actionMessage}</p>
+          </div>
+          <button type="button" className="text-button" onClick={() => setActionMessage(null)}>Dismiss</button>
         </div>
       )}
 
@@ -86,12 +163,61 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
           <button className="button button-secondary" type="button" onClick={() => void copyCampaignId()}>
             Copy campaign ID
           </button>
-          <button className="button button-secondary" type="button" onClick={refresh}>
+          <button className="button button-secondary" type="button" onClick={() => void refresh()}>
             Refresh
           </button>
+          {(["queued", "running"].includes(campaign.status) || campaign.status === "cancel_requested") && (
+            <button
+              className="button button-danger"
+              type="button"
+              disabled={campaign.status === "cancel_requested" || activeAction !== null}
+              onClick={() => cancelDialogRef.current?.showModal()}
+            >
+              {campaign.status === "cancel_requested"
+                ? "Cancellation pending"
+                : activeAction === "cancel"
+                  ? "Requesting cancellation…"
+                  : "Cancel campaign"}
+            </button>
+          )}
+          {campaign.status === "failed" && campaign.error?.retryable === true && (
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={activeAction !== null}
+              onClick={() => void handleRetry()}
+            >
+              {activeAction === "retry" ? "Retrying…" : "Retry campaign"}
+            </button>
+          )}
           <span className="sr-only" aria-live="polite">{copyMessage}</span>
         </div>
       </header>
+
+      <dialog ref={cancelDialogRef} className="confirmation-dialog">
+        <form method="dialog">
+          <p className="eyebrow">Confirm cancellation</p>
+          <h2>Stop this campaign?</h2>
+          <p>
+            Active provider work may not stop immediately and may already have incurred cost.
+            Any completed results will remain available.
+          </p>
+          <div className="confirmation-actions">
+            <button className="button button-secondary" type="submit">Keep campaign running</button>
+            <button
+              className="button button-danger"
+              type="button"
+              disabled={activeAction !== null}
+              onClick={() => {
+                cancelDialogRef.current?.close();
+                void handleCancel();
+              }}
+            >
+              Confirm cancellation
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       <div className="detail-overview-grid">
         <section className="detail-panel progress-panel" aria-labelledby="progress-title">
@@ -133,23 +259,99 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
         </section>
       </div>
 
-      {campaign.error && (
-        <section className="campaign-error" aria-labelledby="campaign-error-title">
-          <div>
-            <p className="eyebrow">Campaign stopped</p>
-            <h2 id="campaign-error-title">{campaign.error.code.replaceAll("_", " ")}</h2>
-          </div>
-          <p>{campaign.error.message}</p>
-        </section>
-      )}
+      <CampaignStatePanel campaign={campaign} />
 
       <CampaignResults
         productAnalysis={results?.product_analysis}
         narrativeStrategy={results?.narrative_strategy}
+        storyboard={results?.storyboard}
+        video={results?.video}
         status={campaign.status}
+        refreshMedia={refresh}
       />
     </div>
   );
+}
+
+function CampaignStatePanel({ campaign }: { campaign: CampaignDetailResponse }) {
+  if (campaign.status === "succeeded") {
+    return (
+      <section className="campaign-state campaign-state-success" aria-labelledby="campaign-state-title">
+        <div>
+          <p className="eyebrow">Campaign complete</p>
+          <h2 id="campaign-state-title">Ready to review</h2>
+        </div>
+        <p>
+          The campaign finished successfully. Review the structured direction, storyboard, and video below.
+          {campaign.completed_at ? ` Completed ${formatDateTime(campaign.completed_at)}.` : ""}
+        </p>
+      </section>
+    );
+  }
+
+  if (campaign.status === "failed") {
+    return (
+      <section className="campaign-state campaign-state-error" aria-labelledby="campaign-state-title">
+        <div>
+          <p className="eyebrow">Campaign stopped</p>
+          <h2 id="campaign-state-title">
+            {campaign.error ? humanizeCode(campaign.error.code) : "Generation failed"}
+          </h2>
+        </div>
+        <p>
+          {campaign.error?.message ?? "Campaign generation failed."}
+          {campaign.error?.retryable
+            ? " You can retry from the last completed checkpoint."
+            : " This failure cannot be retried."}
+        </p>
+      </section>
+    );
+  }
+
+  if (campaign.status === "cancelled") {
+    return (
+      <section className="campaign-state campaign-state-cancelled" aria-labelledby="campaign-state-title">
+        <div>
+          <p className="eyebrow">Campaign cancelled</p>
+          <h2 id="campaign-state-title">Generation stopped</h2>
+        </div>
+        <p>The campaign is not complete. Any results finished before cancellation remain available below.</p>
+      </section>
+    );
+  }
+
+  if (campaign.status === "cancel_requested") {
+    return (
+      <section className="campaign-state campaign-state-pending" aria-labelledby="campaign-state-title">
+        <div>
+          <p className="eyebrow">Cancellation pending</p>
+          <h2 id="campaign-state-title">Stopping active work</h2>
+        </div>
+        <p>Cancellation is being processed. This page will keep checking until the campaign stops.</p>
+      </section>
+    );
+  }
+
+  return null;
+}
+
+function actionErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiClientError ? error.message : fallback;
+}
+
+function isStaleActionError(error: unknown): boolean {
+  return error instanceof ApiClientError && ["CAMPAIGN_TERMINAL", "INVALID_CAMPAIGN_STATE"].includes(
+    error.problem?.code ?? "",
+  );
+}
+
+function isAmbiguousRetryError(error: unknown): boolean {
+  return !(error instanceof ApiClientError) || error.status >= 500;
+}
+
+function humanizeCode(value: string): string {
+  const label = value.replaceAll("_", " ").trim().toLowerCase();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "Generation failed";
 }
 
 function DetailError({

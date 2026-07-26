@@ -1,21 +1,35 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import type {
+  AssetDownloadResponse,
   CampaignStatus,
   NarrativeStrategyResponse,
   ProductAnalysisResponse,
 } from "@/lib/api/types";
+import { formatBytes } from "@/lib/format";
 
 interface CampaignResultsProps {
   productAnalysis?: ProductAnalysisResponse | null;
   narrativeStrategy?: NarrativeStrategyResponse | null;
+  storyboard?: AssetDownloadResponse | null;
+  video?: AssetDownloadResponse | null;
   status: CampaignStatus;
+  refreshMedia: () => Promise<void>;
 }
 
 export function CampaignResults({
   productAnalysis,
   narrativeStrategy,
+  storyboard,
+  video,
   status,
+  refreshMedia,
 }: CampaignResultsProps) {
-  const terminalWithoutResult = ["failed", "cancelled"].includes(status);
+  const stoppedWithoutResult = ["failed", "cancelled"].includes(status);
+  const completedWithoutResult = status === "succeeded";
+  const productName = safeText(productAnalysis?.product_name, "Campaign");
 
   return (
     <section className="results-section" aria-labelledby="results-title">
@@ -30,7 +44,8 @@ export function CampaignResults({
           <ResultPlaceholder
             number="01"
             title="Product analysis"
-            unavailable={terminalWithoutResult}
+            stopped={stoppedWithoutResult}
+            completed={completedWithoutResult}
           />
         )}
         {narrativeStrategy ? (
@@ -39,7 +54,37 @@ export function CampaignResults({
           <ResultPlaceholder
             number="02"
             title="Narrative strategy"
-            unavailable={terminalWithoutResult}
+            stopped={stoppedWithoutResult}
+            completed={completedWithoutResult}
+          />
+        )}
+        {storyboard ? (
+          <StoryboardCard
+            key={storyboard.download_url}
+            artifact={storyboard}
+            productName={productName}
+            refreshMedia={refreshMedia}
+          />
+        ) : (
+          <ResultPlaceholder
+            number="03"
+            title="Storyboard"
+            stopped={stoppedWithoutResult}
+            completed={completedWithoutResult}
+          />
+        )}
+        {video ? (
+          <VideoCard
+            key={video.download_url}
+            artifact={video}
+            refreshMedia={refreshMedia}
+          />
+        ) : (
+          <ResultPlaceholder
+            number="04"
+            title="Campaign video"
+            stopped={stoppedWithoutResult}
+            completed={completedWithoutResult}
           />
         )}
       </div>
@@ -143,14 +188,194 @@ function FactList({ title, facts }: { title: string; facts: string[] }) {
   );
 }
 
+function StoryboardCard({
+  artifact,
+  productName,
+  refreshMedia,
+}: {
+  artifact: AssetDownloadResponse;
+  productName: string;
+  refreshMedia: () => Promise<void>;
+}) {
+  const { unavailable, markFailed } = useMediaAvailability(artifact);
+
+  return (
+    <article className="result-card media-card">
+      <ResultCardHeading number="03" kicker="Visual direction" title="Storyboard" />
+      {unavailable ? (
+        <MediaUnavailable refreshMedia={refreshMedia} />
+      ) : (
+        <>
+          <img
+            className="storyboard-image"
+            src={artifact.download_url}
+            alt={`${productName} campaign storyboard`}
+            onError={markFailed}
+          />
+          <div className="media-footer">
+            <MediaMetadata artifact={artifact} />
+            <a
+              className="button button-secondary"
+              href={artifact.download_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open full size
+            </a>
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+function VideoCard({
+  artifact,
+  refreshMedia,
+}: {
+  artifact: AssetDownloadResponse;
+  refreshMedia: () => Promise<void>;
+}) {
+  const { unavailable, markFailed } = useMediaAvailability(artifact);
+
+  return (
+    <article className="result-card media-card media-card-dark">
+      <ResultCardHeading number="04" kicker="Final cut" title="Campaign video" />
+      {unavailable ? (
+        <MediaUnavailable refreshMedia={refreshMedia} />
+      ) : (
+        <>
+          <video
+            className="campaign-video"
+            src={artifact.download_url}
+            controls
+            preload="metadata"
+            onError={markFailed}
+          >
+            Your browser does not support embedded video.
+          </video>
+          <div className="media-footer">
+            <MediaMetadata artifact={artifact} />
+            <a
+              className="button button-on-dark"
+              href={artifact.download_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open video
+            </a>
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+function ResultCardHeading({
+  number,
+  kicker,
+  title,
+}: {
+  number: string;
+  kicker: string;
+  title: string;
+}) {
+  return (
+    <header className="result-card-heading">
+      <span>{number}</span>
+      <div>
+        <p className="card-kicker">{kicker}</p>
+        <h3>{title}</h3>
+      </div>
+    </header>
+  );
+}
+
+function MediaMetadata({ artifact }: { artifact: AssetDownloadResponse }) {
+  return (
+    <p>
+      {safeText(artifact.content_type, "Media file")} · {formatBytes(artifact.size_bytes)}
+    </p>
+  );
+}
+
+function MediaUnavailable({ refreshMedia }: { refreshMedia: () => Promise<void> }) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    try {
+      await refreshMedia();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
+  return (
+    <div className="media-unavailable" role="status">
+      <div>
+        <h4>Media link unavailable</h4>
+        <p>The signed link expired or could not be loaded. Refreshing it will not regenerate the campaign.</p>
+      </div>
+      <button
+        className="button button-secondary"
+        type="button"
+        disabled={isRefreshing}
+        onClick={() => void handleRefresh()}
+      >
+        {isRefreshing ? "Refreshing link…" : "Refresh media link"}
+      </button>
+    </div>
+  );
+}
+
+function useMediaAvailability(artifact: AssetDownloadResponse) {
+  const [failed, setFailed] = useState(false);
+  const [expired, setExpired] = useState(() => isExpired(artifact.download_url_expires_at));
+
+  useEffect(() => {
+    setFailed(false);
+    const expiresAt = Date.parse(artifact.download_url_expires_at);
+    if (Number.isNaN(expiresAt)) {
+      setExpired(false);
+      return;
+    }
+
+    const remainingMs = expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      setExpired(true);
+      return;
+    }
+
+    setExpired(false);
+    const timer = window.setTimeout(
+      () => setExpired(true),
+      Math.min(remainingMs, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [artifact.download_url, artifact.download_url_expires_at]);
+
+  return {
+    unavailable: failed || expired || !artifact.download_url,
+    markFailed: () => setFailed(true),
+  };
+}
+
+function isExpired(value: string): boolean {
+  const expiresAt = Date.parse(value);
+  return !Number.isNaN(expiresAt) && expiresAt <= Date.now();
+}
+
 function ResultPlaceholder({
   number,
   title,
-  unavailable,
+  stopped,
+  completed,
 }: {
   number: string;
   title: string;
-  unavailable: boolean;
+  stopped: boolean;
+  completed: boolean;
 }) {
   return (
     <article className="result-placeholder">
@@ -158,9 +383,11 @@ function ResultPlaceholder({
       <div>
         <h3>{title}</h3>
         <p>
-          {unavailable
+          {stopped
             ? "This result was not completed before the campaign stopped."
-            : "Waiting for the campaign pipeline to reach this stage."}
+            : completed
+              ? "This result was not returned by the completed campaign."
+              : "Waiting for the campaign pipeline to reach this stage."}
         </p>
       </div>
     </article>

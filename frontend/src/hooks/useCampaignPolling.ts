@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiClientError } from "@/lib/api/client";
 import { getCampaign } from "@/lib/api/campaigns";
-import type { CampaignDetailResponse, CampaignStatus } from "@/lib/api/types";
+import type {
+  CampaignAcceptedResponse,
+  CampaignDetailResponse,
+  CampaignStatus,
+} from "@/lib/api/types";
 import { isTerminalStatus } from "@/lib/campaignState";
 
 type FatalReadState = "not-found" | "access-denied" | "error" | null;
@@ -15,7 +19,8 @@ interface CampaignPollingState {
   errorMessage: string | null;
   retryDelaySeconds: number | null;
   fatalState: FatalReadState;
-  refresh: () => void;
+  refresh: () => Promise<void>;
+  applyAcceptedCampaign: (accepted: CampaignAcceptedResponse) => void;
 }
 
 const POLL_INTERVAL_MS = 3_000;
@@ -27,17 +32,18 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryDelaySeconds, setRetryDelaySeconds] = useState<number | null>(null);
   const [fatalState, setFatalState] = useState<FatalReadState>(null);
-  const refreshRef = useRef<() => void>(() => undefined);
+  const currentStatusRef = useRef<CampaignStatus | null>(null);
+  const refreshRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     let active = true;
-    let inFlight = false;
+    let inFlightPromise: Promise<void> | null = null;
     let failureCount = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
-    let currentStatus: CampaignStatus | null = null;
 
     setCampaign(null);
+    currentStatusRef.current = null;
     setIsLoading(true);
     setErrorMessage(null);
     setRetryDelaySeconds(null);
@@ -60,13 +66,24 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
       }, delayMs);
     }
 
-    async function readCampaign(force = false) {
-      if (!active || inFlight || (!force && document.hidden)) {
-        return;
+    function readCampaign(force = false): Promise<void> {
+      if (!active || (!force && document.hidden)) {
+        return Promise.resolve();
+      }
+      if (inFlightPromise !== null) {
+        return force
+          ? inFlightPromise.then(() => readCampaign(true))
+          : inFlightPromise;
       }
 
+      inFlightPromise = performRead().finally(() => {
+        inFlightPromise = null;
+      });
+      return inFlightPromise;
+    }
+
+    async function performRead() {
       clearTimer();
-      inFlight = true;
       controller = new AbortController();
 
       try {
@@ -75,7 +92,7 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
           return;
         }
 
-        currentStatus = nextCampaign.status;
+        currentStatusRef.current = nextCampaign.status;
         failureCount = 0;
         setCampaign(nextCampaign);
         setErrorMessage(null);
@@ -115,7 +132,10 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
             ? error.message
             : "Campaign updates are temporarily unavailable.",
         );
-        if (currentStatus === null || !isTerminalStatus(currentStatus)) {
+        if (
+          currentStatusRef.current === null ||
+          !isTerminalStatus(currentStatusRef.current)
+        ) {
           const delayMs = BACKOFF_MS[Math.min(failureCount, BACKOFF_MS.length - 1)];
           failureCount += 1;
           setRetryDelaySeconds(delayMs / 1_000);
@@ -123,13 +143,11 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
         } else {
           setRetryDelaySeconds(null);
         }
-      } finally {
-        inFlight = false;
       }
     }
 
-    function refresh() {
-      void readCampaign(true);
+    function refresh(): Promise<void> {
+      return readCampaign(true);
     }
 
     function resumePolling() {
@@ -137,7 +155,10 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
         clearTimer();
         return;
       }
-      if (currentStatus === null || !isTerminalStatus(currentStatus)) {
+      if (
+        currentStatusRef.current === null ||
+        !isTerminalStatus(currentStatusRef.current)
+      ) {
         void readCampaign();
       }
     }
@@ -157,8 +178,30 @@ export function useCampaignPolling(campaignId: string): CampaignPollingState {
   }, [campaignId]);
 
   const refresh = useCallback(() => refreshRef.current(), []);
+  const applyAcceptedCampaign = useCallback((accepted: CampaignAcceptedResponse) => {
+    if (accepted.id !== campaignId) {
+      return;
+    }
+    currentStatusRef.current = accepted.status;
+    setCampaign((current) => current === null || current.id !== accepted.id
+      ? current
+      : {
+          ...current,
+          ...accepted,
+          error: accepted.status === "queued" ? null : current.error,
+          completed_at: accepted.status === "queued" ? null : current.completed_at,
+        });
+  }, [campaignId]);
 
-  return { campaign, isLoading, errorMessage, retryDelaySeconds, fatalState, refresh };
+  return {
+    campaign,
+    isLoading,
+    errorMessage,
+    retryDelaySeconds,
+    fatalState,
+    refresh,
+    applyAcceptedCampaign,
+  };
 }
 
 function isAbortError(error: unknown): boolean {

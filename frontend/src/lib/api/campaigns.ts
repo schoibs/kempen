@@ -57,3 +57,28 @@ export function createCampaign(
     signal,
   });
 }
+
+export function cancelCampaign(
+  campaignId: string,
+  signal?: AbortSignal,
+): Promise<CampaignAcceptedResponse> {
+  return apiRequest<CampaignAcceptedResponse>(
+    `/v1/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+    { method: "POST", signal },
+  );
+}
+
+export function retryCampaign(
+  campaignId: string,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<CampaignAcceptedResponse> {
+  return apiRequest<CampaignAcceptedResponse>(
+    `/v1/campaigns/${encodeURIComponent(campaignId)}/retry`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      signal,
+    },
+  );
+}
