@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     object_storage_endpoint: str = "http://localhost:9000"
+    object_storage_public_endpoint: str | None = None
     object_storage_region: str = "us-east-1"
     object_storage_bucket: str = "campaign-assets"
     object_storage_access_key: SecretStr = SecretStr("campaign-local")
@@ -113,6 +115,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "fake_provider_failure_stage must be one of: "
                 + ", ".join(sorted(allowed))
+            )
+        return value
+
+    @field_validator("object_storage_public_endpoint")
+    @classmethod
+    def validate_object_storage_public_endpoint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            raise ValueError(
+                "object_storage_public_endpoint must be an absolute http or https URL with a host"
             )
         return value
 

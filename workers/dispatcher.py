@@ -118,14 +118,18 @@ class Dispatcher:
                         or_(
                             CampaignStageRun.status == StageStatus.PENDING.value,
                             (
-                                CampaignStageRun.status == StageStatus.WAITING_EXTERNAL.value,
-                                (CampaignStageRun.next_poll_at.is_(None))
-                                | (CampaignStageRun.next_poll_at <= now),
+                                CampaignStageRun.status == StageStatus.WAITING_EXTERNAL.value
+                            )
+                            & (
+                                CampaignStageRun.next_poll_at.is_(None)
+                                | (CampaignStageRun.next_poll_at <= now)
                             ),
                             (
-                                CampaignStageRun.status == StageStatus.RUNNING.value,
-                                (CampaignStageRun.lease_expires_at.is_(None))
-                                | (CampaignStageRun.lease_expires_at <= now),
+                                CampaignStageRun.status == StageStatus.RUNNING.value
+                            )
+                            & (
+                                CampaignStageRun.lease_expires_at.is_(None)
+                                | (CampaignStageRun.lease_expires_at <= now)
                             ),
                         ),
                     )
