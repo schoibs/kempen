@@ -406,7 +406,7 @@ export function CampaignForm() {
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleFileChange}
-                    aria-describedby={fieldErrors.file ? "product-image-error" : undefined}
+                    aria-describedby={touched.file && fieldErrors.file ? "product-image-error" : undefined}
                     aria-invalid={Boolean(fieldErrors.file)}
                   />
                 </div>
@@ -426,7 +426,11 @@ export function CampaignForm() {
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleFileChange}
                     onBlur={() => validateBlurredField("file")}
-                    aria-describedby="product-image-help product-image-error"
+                    aria-describedby={
+                      touched.file && fieldErrors.file
+                        ? "product-image-help product-image-error"
+                        : "product-image-help"
+                    }
                     aria-invalid={Boolean(fieldErrors.file)}
                   />
                   <span className="dropzone-mark" aria-hidden="true">+</span>
@@ -434,7 +438,7 @@ export function CampaignForm() {
                   <span id="product-image-help">or drop one here</span>
                 </label>
               )}
-              {touched.file && fieldErrors.file && <p className="field-error" id="product-image-error">{fieldErrors.file}</p>}
+              {touched.file && fieldErrors.file && <p className="field-error" id="product-image-error" role="alert">{fieldErrors.file}</p>}
             </div>
 
             <div className="field-group field-wide">
@@ -452,11 +456,15 @@ export function CampaignForm() {
                 onChange={(event) => { setTheme(event.target.value); clearFieldError("campaign_theme"); }}
                 onBlur={() => validateBlurredField("campaign_theme")}
                 placeholder="Example: Bright, sunny and fun"
-                aria-describedby="campaign-theme-help campaign-theme-error"
+                aria-describedby={
+                  touched.campaign_theme && fieldErrors.campaign_theme
+                    ? "campaign-theme-help campaign-theme-error"
+                    : "campaign-theme-help"
+                }
                 aria-invalid={Boolean(fieldErrors.campaign_theme)}
               />
               <p className="field-help" id="campaign-theme-help">Describe the creative world, energy, or occasion.</p>
-              {touched.campaign_theme && fieldErrors.campaign_theme && <p className="field-error" id="campaign-theme-error">{fieldErrors.campaign_theme}</p>}
+              {touched.campaign_theme && fieldErrors.campaign_theme && <p className="field-error" id="campaign-theme-error" role="alert">{fieldErrors.campaign_theme}</p>}
             </div>
 
             <div className="field-group field-wide">
@@ -474,11 +482,15 @@ export function CampaignForm() {
                 onChange={(event) => { setAudience(event.target.value); clearFieldError("target_audience"); }}
                 onBlur={() => validateBlurredField("target_audience")}
                 placeholder="Example: Young adults who enjoy summer festivals"
-                aria-describedby="target-audience-help target-audience-error"
+                aria-describedby={
+                  touched.target_audience && fieldErrors.target_audience
+                    ? "target-audience-help target-audience-error"
+                    : "target-audience-help"
+                }
                 aria-invalid={Boolean(fieldErrors.target_audience)}
               />
               <p className="field-help" id="target-audience-help">Name the people this campaign should speak to.</p>
-              {touched.target_audience && fieldErrors.target_audience && <p className="field-error" id="target-audience-error">{fieldErrors.target_audience}</p>}
+              {touched.target_audience && fieldErrors.target_audience && <p className="field-error" id="target-audience-error" role="alert">{fieldErrors.target_audience}</p>}
             </div>
 
             <div className="field-group">
@@ -490,14 +502,18 @@ export function CampaignForm() {
                 value={duration}
                 onChange={(event) => { setDuration(event.target.value); clearFieldError("target_duration_sec"); }}
                 onBlur={() => validateBlurredField("target_duration_sec")}
-                aria-describedby="campaign-duration-error"
+                aria-describedby={
+                  touched.target_duration_sec && fieldErrors.target_duration_sec
+                    ? "campaign-duration-error"
+                    : undefined
+                }
                 aria-invalid={Boolean(fieldErrors.target_duration_sec)}
               >
                 {Array.from({ length: 12 }, (_, index) => index + 4).map((seconds) => (
                   <option value={seconds} key={seconds}>{seconds} seconds</option>
                 ))}
               </select>
-              {touched.target_duration_sec && fieldErrors.target_duration_sec && <p className="field-error" id="campaign-duration-error">{fieldErrors.target_duration_sec}</p>}
+              {touched.target_duration_sec && fieldErrors.target_duration_sec && <p className="field-error" id="campaign-duration-error" role="alert">{fieldErrors.target_duration_sec}</p>}
             </div>
 
             <div className="field-group">
@@ -509,14 +525,18 @@ export function CampaignForm() {
                 value={aspectRatio}
                 onChange={(event) => { setAspectRatio(event.target.value); clearFieldError("aspect_ratio"); }}
                 onBlur={() => validateBlurredField("aspect_ratio")}
-                aria-describedby="aspect-ratio-error"
+                aria-describedby={
+                  touched.aspect_ratio && fieldErrors.aspect_ratio
+                    ? "aspect-ratio-error"
+                    : undefined
+                }
                 aria-invalid={Boolean(fieldErrors.aspect_ratio)}
               >
                 {ASPECT_RATIO_OPTIONS.map((option) => (
                   <option value={option.value} key={option.value}>{option.label}</option>
                 ))}
               </select>
-              {touched.aspect_ratio && fieldErrors.aspect_ratio && <p className="field-error" id="aspect-ratio-error">{fieldErrors.aspect_ratio}</p>}
+              {touched.aspect_ratio && fieldErrors.aspect_ratio && <p className="field-error" id="aspect-ratio-error" role="alert">{fieldErrors.aspect_ratio}</p>}
             </div>
           </fieldset>
         </div>

@@ -20,7 +20,10 @@ celery_app.conf.update(
     result_backend=None,
     task_acks_late=True,
     task_default_queue="planning",
-    task_queues=(Queue("planning"), Queue("media")),
+    task_queues=(
+        Queue("planning", routing_key="planning"),
+        Queue("media", routing_key="media"),
+    ),
     task_ignore_result=True,
     task_routes={
         "campaign.run_stage": {"queue": "planning"},

@@ -13,7 +13,16 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const environmentBadge = process.env.NEXT_PUBLIC_ENVIRONMENT_BADGE;
+  const deploymentLabel = process.env.NEXT_PUBLIC_DEPLOYMENT_LABEL;
+  const fakeProviderMode = process.env.NEXT_PUBLIC_FAKE_PROVIDER_MODE;
+  const providerLabel = fakeProviderMode === "true"
+    ? "Fake providers"
+    : fakeProviderMode === "false"
+      ? "Real providers"
+      : null;
+  const environmentBadge = deploymentLabel && providerLabel
+    ? `${deploymentLabel} · ${providerLabel}`
+    : null;
 
   return (
     <html lang="en">

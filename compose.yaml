@@ -148,6 +148,32 @@ services:
       redis:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:8000
+        NEXT_PUBLIC_DEPLOYMENT_LABEL: ${CAMPAIGN_DEPLOYMENT_LABEL:-Local}
+        NEXT_PUBLIC_FAKE_PROVIDER_MODE: ${CAMPAIGN_FAKE_PROVIDER_MODE:-true}
+    image: campaign-generator-frontend:local
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://localhost:3000/healthz').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   campaign-minio:
   campaign-postgres:

@@ -82,6 +82,7 @@ select {
 }
 
 .brand {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -135,6 +136,9 @@ select {
 }
 
 .header-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -727,6 +731,9 @@ select:disabled {
 
 .text-button {
   flex: 0 0 auto;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 4px;
   border: 0;
   border-bottom: 1px solid currentColor;
@@ -916,6 +923,7 @@ progress::-moz-progress-bar {
 }
 
 .card-link {
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -980,6 +988,7 @@ progress::-moz-progress-bar {
 }
 
 .back-link {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;

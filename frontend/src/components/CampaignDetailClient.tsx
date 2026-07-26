@@ -194,11 +194,16 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
         </div>
       </header>
 
-      <dialog ref={cancelDialogRef} className="confirmation-dialog">
+      <dialog
+        ref={cancelDialogRef}
+        className="confirmation-dialog"
+        aria-labelledby="cancel-dialog-title"
+        aria-describedby="cancel-dialog-description"
+      >
         <form method="dialog">
           <p className="eyebrow">Confirm cancellation</p>
-          <h2>Stop this campaign?</h2>
-          <p>
+          <h2 id="cancel-dialog-title">Stop this campaign?</h2>
+          <p id="cancel-dialog-description">
             Active provider work may not stop immediately and may already have incurred cost.
             Any completed results will remain available.
           </p>
