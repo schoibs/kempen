@@ -78,6 +78,8 @@ class S3ObjectStorage(ObjectStorage):
             "ContentType": content_type,
         }
         headers = {"Content-Type": content_type}
+        parameters["Tagging"] = "unattached=true"
+        headers["x-amz-tagging"] = "unattached=true"
         if checksum_sha256:
             checksum_base64 = _sha256_hex_to_base64(checksum_sha256)
             parameters["ChecksumSHA256"] = checksum_base64
@@ -159,7 +161,7 @@ class S3ObjectStorage(ObjectStorage):
                 str(source),
                 self.bucket,
                 object_key,
-                ExtraArgs={"ContentType": content_type},
+                ExtraArgs={"ContentType": content_type, "Tagging": "campaign-artifact=true"},
             )
         except (ClientError, BotoCoreError, OSError) as exc:
             raise ObjectStorageError("Could not upload generated artifact.") from exc
@@ -170,6 +172,40 @@ class S3ObjectStorage(ObjectStorage):
             self._client.delete_object(Bucket=self.bucket, Key=object_key)
         except (ClientError, BotoCoreError) as exc:
             raise ObjectStorageError("Could not remove object.") from exc
+
+    def configure_lifecycle(self, *, upload_retention_days: int, artifact_retention_days: int) -> None:
+        try:
+            self._client.put_bucket_lifecycle_configuration(
+                Bucket=self.bucket,
+                LifecycleConfiguration={
+                    "Rules": [
+                        {
+                            "ID": "expire-unattached-upload-prefix",
+                            "Status": "Enabled",
+                            "Filter": {"Tag": {"Key": "unattached", "Value": "true"}},
+                            "Expiration": {"Days": max(1, upload_retention_days)},
+                        },
+                        {
+                            "ID": "expire-campaign-artifacts",
+                            "Status": "Enabled",
+                            "Filter": {"Tag": {"Key": "campaign-artifact", "Value": "true"}},
+                            "Expiration": {"Days": max(1, artifact_retention_days)},
+                        },
+                    ]
+                },
+            )
+        except (ClientError, BotoCoreError) as exc:
+            raise ObjectStorageError("Could not configure object-storage lifecycle rules.") from exc
+
+    def mark_object_attached(self, *, object_key: str) -> None:
+        try:
+            self._client.put_object_tagging(
+                Bucket=self.bucket,
+                Key=object_key,
+                Tagging={"TagSet": [{"Key": "attached", "Value": "true"}]},
+            )
+        except (ClientError, BotoCoreError) as exc:
+            raise ObjectStorageError("Could not mark uploaded object as attached.") from exc
 
     @staticmethod
     def _error_code(error: ClientError) -> str:

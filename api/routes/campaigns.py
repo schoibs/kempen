@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import Principal, get_database_session, get_principal, get_storage
 from api.errors import ApiProblem
+from api.limits import reserve_campaign_quota, release_campaign_quota
 from api.schemas.assets import AssetDownloadResponse
 from api.schemas.campaigns import (
     CampaignAcceptedResponse,
@@ -75,6 +76,13 @@ def create_campaign(
     principal: CurrentPrincipal,
     session: DatabaseSession,
 ) -> CampaignAcceptedResponse:
+    if not get_settings().campaign_creation_enabled:
+        raise ApiProblem(
+            status=503,
+            code="CAMPAIGN_CREATION_DISABLED",
+            title="Campaign creation is temporarily disabled",
+            detail="Campaign creation is disabled while the service is being operated or upgraded.",
+        )
     if idempotency_key != idempotency_key.strip():
         raise ApiProblem(
             status=422,
@@ -179,6 +187,7 @@ def create_campaign(
         created_at=now,
     )
 
+    quota_reserved = reserve_campaign_quota(principal=principal, campaign_id=campaign.id)
     try:
         session.add(campaign)
         session.flush()
@@ -188,6 +197,7 @@ def create_campaign(
         session.commit()
     except IntegrityError:
         session.rollback()
+        _release_quota_safely(principal.tenant_id, campaign.id, reserved=quota_reserved)
         existing = campaigns.get_idempotency_record(
             tenant_id=principal.tenant_id,
             route=_CREATE_ROUTE,
@@ -208,6 +218,10 @@ def create_campaign(
             principal=principal,
             response=response,
         )
+    except Exception:
+        session.rollback()
+        _release_quota_safely(principal.tenant_id, campaign.id, reserved=quota_reserved)
+        raise
 
     response.headers["Location"] = _campaign_path(campaign.id)
     response.headers["Retry-After"] = "3"
@@ -336,6 +350,8 @@ def cancel_campaign(
             _enqueue_video_cancellation(session=session, campaign_id=campaign.id, now=now)
         response.status_code = status.HTTP_202_ACCEPTED
     session.commit()
+    if campaign.status == CampaignStatus.CANCELLED.value:
+        _release_quota_safely(principal.tenant_id, campaign.id)
     return _accepted_response(campaign)
 
 
@@ -447,10 +463,12 @@ def retry_campaign(
         },
         now=now,
     )
+    quota_reserved = reserve_campaign_quota(principal=principal, campaign_id=campaign.id)
     try:
         session.commit()
     except IntegrityError:
         session.rollback()
+        _release_quota_safely(principal.tenant_id, campaign.id, reserved=quota_reserved)
         existing = CampaignRepository(session).get_idempotency_record(
             tenant_id=principal.tenant_id,
             route=route,
@@ -471,6 +489,10 @@ def retry_campaign(
         )
         response.status_code = status.HTTP_200_OK
         return _accepted_response(campaign)
+    except Exception:
+        session.rollback()
+        _release_quota_safely(principal.tenant_id, campaign.id, reserved=quota_reserved)
+        raise
     response.status_code = status.HTTP_202_ACCEPTED
     response.headers["Location"] = _campaign_path(campaign.id)
     return _accepted_response(campaign)
@@ -824,3 +846,12 @@ def _not_found_problem(resource_name: str) -> ApiProblem:
         title=f"{resource_name} not found",
         detail=f"The requested {resource_name.lower()} does not exist.",
     )
+
+
+def _release_quota_safely(tenant_id: str, campaign_id: str, *, reserved: bool = True) -> None:
+    if not reserved:
+        return
+    try:
+        release_campaign_quota(tenant_id=tenant_id, campaign_id=campaign_id)
+    except Exception:
+        logger.warning("Could not release campaign quota reservation campaign_id=%s", campaign_id)

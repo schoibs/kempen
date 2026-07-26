@@ -210,3 +210,22 @@ class DispatchOutbox(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class StorageCleanupAction(Base):
+    __tablename__ = "storage_cleanup_actions"
+    __table_args__ = (
+        Index("ix_storage_cleanup_actions_created", "created_at"),
+        Index("ix_storage_cleanup_actions_asset", "asset_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(String(64))
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

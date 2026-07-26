@@ -160,6 +160,16 @@ def complete_upload(
             detail="Upload an image that matches the requested type, size, and checksum.",
         )
 
+    try:
+        storage.mark_object_attached(object_key=asset.object_key)
+    except ObjectStorageError as exc:
+        logger.exception("Could not mark uploaded asset as attached asset_id=%s", asset.id)
+        raise ApiProblem(
+            status=503,
+            code="SERVICE_UNAVAILABLE",
+            title="Upload service unavailable",
+            detail="The upload service is temporarily unavailable.",
+        ) from exc
     asset.status = "ready"
     asset.ready_at = datetime.now(UTC)
     session.commit()

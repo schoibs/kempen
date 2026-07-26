@@ -21,10 +21,13 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
     fake_provider_mode: bool = True
+    campaign_creation_enabled: bool = True
     fake_provider_latency_sec: float = Field(default=0.0, ge=0, le=60)
     fake_provider_failure_stage: str | None = None
 
     database_url: str = "postgresql+psycopg://campaign:campaign@localhost:5432/campaign"
+    database_pool_size: int = Field(default=5, ge=1, le=100)
+    database_max_overflow: int = Field(default=5, ge=0, le=100)
     redis_url: str = "redis://localhost:6379/0"
 
     object_storage_endpoint: str = "http://localhost:9000"
@@ -44,6 +47,15 @@ class Settings(BaseSettings):
     auth_enabled: bool = False
     oidc_issuer: str | None = None
     oidc_audience: str | None = None
+    oidc_jwks_url: str | None = None
+    oidc_required_scope: str | None = None
+    cors_allowed_origins: str = ""
+
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = Field(default=120, ge=1)
+    rate_limit_window_sec: int = Field(default=60, ge=1)
+    tenant_concurrent_campaign_quota: int = Field(default=20, ge=1)
+    tenant_daily_campaign_quota: int = Field(default=1000, ge=1)
 
     dispatcher_interval_sec: float = Field(default=5.0, gt=0)
     dispatcher_reconcile_after_sec: float = Field(default=15.0, gt=0)
@@ -66,6 +78,9 @@ class Settings(BaseSettings):
     video_poll_max_sec: float = Field(default=30.0, ge=1, le=120)
     video_poll_jitter_ratio: float = Field(default=0.2, ge=0, le=1)
     idempotency_retention_sec: int = Field(default=24 * 60 * 60, ge=60)
+    artifact_retention_sec: int = Field(default=30 * 24 * 60 * 60, ge=60)
+    cleanup_interval_sec: int = Field(default=15 * 60, ge=60)
+    cleanup_batch_size: int = Field(default=100, ge=1, le=1000)
 
     openai_api_key: SecretStr | None = Field(
         default=None,
@@ -135,6 +150,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Authentication requires: " + ", ".join(missing)
                 )
+
+        if self.environment == "production" and not self.cors_allowed_origins.strip():
+            raise ValueError("Production requires CAMPAIGN_CORS_ALLOWED_ORIGINS.")
 
         return self
 

@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import func, select
 
 from app_config import get_settings
+from api.limits import release_campaign_quota
 from domain.campaigns import CampaignInput
 from domain.enums import CampaignStage, CampaignStatus, PROGRESS_PERCENT_BY_STAGE, PUBLIC_STAGE_BY_STAGE, StageStatus
 from domain.orchestration import CampaignStageOperations
@@ -115,6 +116,11 @@ def run_stage(*, campaign_id: str, stage_run_id: str) -> dict[str, str]:
             claim.stage.value,
             failure.code,
             type(exc).__name__,
+            extra={
+                "campaign_id": claim.campaign_id,
+                "stage": claim.stage.value,
+                "error_code": failure.code,
+            },
         )
         _fail_stage(
             claim,
@@ -656,6 +662,7 @@ def _complete_stage(claim: ClaimedStage, execution: StageExecution) -> None:
                     payload=None,
                     now=now,
                 )
+                _release_quota_safely(campaign.tenant_id, campaign.id)
                 return
 
             next_run = CampaignStageRun(
@@ -835,6 +842,7 @@ def _fail_stage(
                 payload={"code": code},
                 now=now,
             )
+            _release_quota_safely(campaign.tenant_id, campaign.id)
     finally:
         session.close()
 
@@ -1006,6 +1014,7 @@ def _cancel_stage_in_transaction(
         payload=None,
         now=now,
     )
+    _release_quota_safely(campaign.tenant_id, campaign.id)
 
 
 def _enqueue_video_cancellation(*, session: Any, campaign_id: str, now: datetime) -> None:
@@ -1204,6 +1213,13 @@ def _sanitize_metadata_value(value: Any) -> Any | None:
             if (nested := _sanitize_metadata_value(item)) is not None
         ]
     return None
+
+
+def _release_quota_safely(tenant_id: str, campaign_id: str) -> None:
+    try:
+        release_campaign_quota(tenant_id=tenant_id, campaign_id=campaign_id)
+    except Exception:
+        logger.warning("Could not release campaign quota reservation campaign_id=%s", campaign_id)
 
 
 def _locked_stage_and_campaign(

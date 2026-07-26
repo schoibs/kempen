@@ -69,3 +69,9 @@ class ObjectStorage(ABC):
     @abstractmethod
     def delete_object(self, *, object_key: str) -> None:
         """Remove a failed or quarantined upload."""
+
+    def configure_lifecycle(self, *, upload_retention_days: int, artifact_retention_days: int) -> None:
+        """Install private-object retention rules when the backend supports them."""
+
+    def mark_object_attached(self, *, object_key: str) -> None:
+        """Remove the orphan-upload lifecycle tag after an upload is attached."""
