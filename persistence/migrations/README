@@ -1,0 +1,5 @@
+Database migrations for the asynchronous campaign API.
+
+Run from the repository root:
+
+    alembic upgrade head

@@ -30,7 +30,6 @@ class StoryboardGeneratorService:
     default_size = "1536x1024"
     default_quality = "medium"
     default_output_format = "png"
-    default_output_path = Path("assets/generated/storyboard_sheet.png")
 
     def __init__(
         self,
@@ -53,13 +52,10 @@ class StoryboardGeneratorService:
         product_analysis: dict[str, Any],
         narrative_strategy: dict[str, Any],
         campaign_input: Any,
-        output_path: str | Path | None = None,
+        output_path: str | Path,
     ) -> StoryboardGeneratorServiceOutput:
-        # TODO: to remove this comment
-        # return StoryboardGeneratorServiceOutput(image_path='assets/generated/storyboard_sheet.png')
-
         campaign_input_dict = self._campaign_input_to_dict(campaign_input)
-        output_path = Path(output_path or self.default_output_path)
+        output_path = Path(output_path)
 
         prompt = build_storyboard_prompt(
             product_analysis=product_analysis,

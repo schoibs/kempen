@@ -9,6 +9,8 @@ from .video_generator import (
     VideoGeneratorService,
     VideoGeneratorServiceError,
     VideoGeneratorServiceOutput,
+    VideoGeneratorServicePollOutput,
+    VideoGeneratorServiceSubmissionOutput,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "VideoGeneratorService",
     "VideoGeneratorServiceError",
     "VideoGeneratorServiceOutput",
+    "VideoGeneratorServicePollOutput",
+    "VideoGeneratorServiceSubmissionOutput",
 ]
