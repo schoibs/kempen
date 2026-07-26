@@ -1,8 +1,10 @@
 import { apiRequest } from "./client";
 import type {
   CampaignDetailResponse,
+  CampaignAcceptedResponse,
   CampaignListResponse,
   CampaignStatus,
+  CreateCampaignRequest,
 } from "./types";
 
 interface ListCampaignsOptions {
@@ -41,4 +43,17 @@ export function getCampaign(
     `/v1/campaigns/${encodeURIComponent(campaignId)}`,
     { signal },
   );
+}
+
+export function createCampaign(
+  request: CreateCampaignRequest,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<CampaignAcceptedResponse> {
+  return apiRequest<CampaignAcceptedResponse>("/v1/campaigns", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    json: request,
+    signal,
+  });
 }

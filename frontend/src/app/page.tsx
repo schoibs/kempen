@@ -1,4 +1,5 @@
 import { CampaignList } from "@/components/CampaignList";
+import { CampaignForm } from "@/components/CampaignForm";
 
 export default function DashboardPage() {
   return (
@@ -19,6 +20,7 @@ export default function DashboardPage() {
           <span>Motion</span>
         </div>
       </section>
+      <CampaignForm />
       <CampaignList />
     </div>
   );

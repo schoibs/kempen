@@ -7,12 +7,19 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 export class ApiClientError extends Error {
   readonly status: number;
   readonly problem: ApiProblem | null;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, problem: ApiProblem | null, fallbackMessage: string) {
+  constructor(
+    status: number,
+    problem: ApiProblem | null,
+    fallbackMessage: string,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(problem?.detail ?? fallbackMessage);
     this.name = "ApiClientError";
     this.status = status;
     this.problem = problem;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -43,6 +50,7 @@ export async function apiRequest<T extends object>(
       response.status,
       problem,
       `The request could not be completed (HTTP ${response.status}).`,
+      parseRetryAfter(response.headers.get("retry-after")),
     );
   }
 
@@ -55,6 +63,20 @@ export async function apiRequest<T extends object>(
   }
 
   return payload as T;
+}
+
+function parseRetryAfter(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds);
+  }
+
+  const retryAt = Date.parse(value);
+  return Number.isNaN(retryAt) ? null : Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
 }
 
 async function readJsonObject(response: Response): Promise<Record<string, unknown> | null> {

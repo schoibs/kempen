@@ -72,6 +72,14 @@ export interface UploadCompleteResponse {
   size_bytes: number;
 }
 
+export interface CreateCampaignRequest {
+  product_image_asset_id: string;
+  campaign_theme: string;
+  target_audience: string;
+  target_duration_sec: number;
+  aspect_ratio: AspectRatio;
+}
+
 export interface CampaignLinks {
   self: string;
   cancel: string;
