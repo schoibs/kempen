@@ -12,6 +12,7 @@
   --type-section: 16px;
   --type-page: 18px;
   --type-display: 24px;
+  --content-width: 1120px;
   --sidebar-width: 224px;
   --control-radius: 6px;
   --panel-radius: 8px;
@@ -160,8 +161,8 @@ textarea {
 }
 
 .shell {
-  width: 100%;
-  padding-inline: 24px;
+  width: min(calc(100% - 48px), var(--content-width));
+  margin-inline: auto;
 }
 
 .text-button,
@@ -361,13 +362,11 @@ textarea {
 }
 
 .workspace-page .campaign-form {
-  max-width: 640px;
-  margin-inline: auto;
+  max-width: none;
 }
 
 .workspace-page .page-header {
-  max-width: 640px;
-  margin-inline: auto;
+  max-width: none;
 }
 
 .section-heading-row,
