@@ -34,7 +34,6 @@ export function CampaignResults({
   return (
     <section className="results-section" aria-labelledby="results-title">
       <div className="detail-section-heading">
-        <p className="eyebrow">Creative intelligence</p>
         <h2 id="results-title">Campaign story</h2>
       </div>
       <div className="results-stack">
@@ -201,7 +200,7 @@ function StoryboardCard({
 
   return (
     <article className="result-card media-card">
-      <ResultCardHeading number="03" kicker="Visual direction" title="Storyboard" />
+      <ResultCardHeading number="03" title="Storyboard" />
       {unavailable ? (
         <MediaUnavailable refreshMedia={refreshMedia} />
       ) : (
@@ -240,7 +239,7 @@ function VideoCard({
 
   return (
     <article className="result-card media-card media-card-dark">
-      <ResultCardHeading number="04" kicker="Final cut" title="Campaign video" />
+      <ResultCardHeading number="04" title="Campaign video" />
       {unavailable ? (
         <MediaUnavailable refreshMedia={refreshMedia} />
       ) : (
@@ -277,14 +276,14 @@ function ResultCardHeading({
   title,
 }: {
   number: string;
-  kicker: string;
+  kicker?: string;
   title: string;
 }) {
   return (
     <header className="result-card-heading">
       <span>{number}</span>
       <div>
-        <p className="card-kicker">{kicker}</p>
+        {kicker && <p className="card-kicker">{kicker}</p>}
         <h3>{title}</h3>
       </div>
     </header>

@@ -28,7 +28,7 @@ const FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
 
 const STALE_AFTER_MS = 30_000;
 
-export function CampaignList() {
+export function CampaignList({ showHeader = true }: { showHeader?: boolean }) {
   const [filter, setFilter] = useState<StatusFilter>("");
   const [items, setItems] = useState<CampaignSummaryResponse[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -132,15 +132,21 @@ export function CampaignList() {
   }
 
   return (
-    <section className="campaigns-section" aria-labelledby="recent-campaigns-title">
+    <section
+      className={`campaigns-section${showHeader ? "" : " campaigns-section-compact"}`}
+      aria-labelledby={showHeader ? "recent-campaigns-title" : undefined}
+      aria-label={showHeader ? undefined : "Campaign list"}
+    >
       <div className="section-heading-row">
-        <div>
-          <p className="eyebrow">Campaign library</p>
-          <h2 id="recent-campaigns-title">Recent campaigns</h2>
-          <p className="section-description">
-            Follow work in progress and revisit completed campaign stories.
-          </p>
-        </div>
+        {showHeader && (
+          <div>
+            <p className="eyebrow">Campaign library</p>
+            <h2 id="recent-campaigns-title">Recent campaigns</h2>
+            <p className="section-description">
+              Follow work in progress and revisit completed campaign stories.
+            </p>
+          </div>
+        )}
         <div className="list-controls">
           <label className="filter-control">
             <span>Status</span>
@@ -187,7 +193,6 @@ export function CampaignList() {
         <CampaignListSkeleton />
       ) : items.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-mark" aria-hidden="true">K</span>
           <h3>{filter ? "No matching campaigns" : "Your campaign library is ready"}</h3>
           <p>
             {filter

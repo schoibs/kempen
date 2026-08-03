@@ -7,7 +7,7 @@ export default function NotFoundPage() {
       <p className="eyebrow">Off script</p>
       <h1>This page isn’t part of the campaign.</h1>
       <p>The route may have moved, or the address may be incomplete.</p>
-      <Link href="/" className="button button-primary">Return to campaigns</Link>
+      <Link href="/" className="button button-primary">Return to workspace</Link>
     </div>
   );
 }

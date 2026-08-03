@@ -112,7 +112,7 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
 
   return (
     <div className="detail-page">
-      <Link href="/" className="back-link">
+      <Link href="/library" className="back-link">
         <span aria-hidden="true">←</span> All campaigns
       </Link>
 
@@ -155,9 +155,7 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
             <StatusBadge status={campaign.status} />
             <time dateTime={campaign.created_at}>{formatDateTime(campaign.created_at)}</time>
           </div>
-          <p className="eyebrow">Campaign workspace</p>
           <h1>{campaignId}</h1>
-          <p>One view of the brief, live pipeline progress, and emerging creative direction.</p>
         </div>
         <div className="detail-actions">
           <button className="button button-secondary" type="button" onClick={() => void copyCampaignId()}>
@@ -227,7 +225,6 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
       <div className="detail-overview-grid">
         <section className="detail-panel progress-panel" aria-labelledby="progress-title">
           <div className="panel-heading">
-            <span>Live pipeline</span>
             <h2 id="progress-title">Production progress</h2>
           </div>
           <CampaignProgress campaign={campaign} />
@@ -236,8 +233,7 @@ export function CampaignDetailClient({ campaignId }: { campaignId: string }) {
 
         <section className="detail-panel brief-panel" aria-labelledby="brief-title">
           <div className="panel-heading">
-            <span>Campaign brief</span>
-            <h2 id="brief-title">Creative inputs</h2>
+            <h2 id="brief-title">Campaign brief</h2>
           </div>
           {input ? (
             <dl className="input-summary">
@@ -283,7 +279,6 @@ function CampaignStatePanel({ campaign }: { campaign: CampaignDetailResponse }) 
     return (
       <section className="campaign-state campaign-state-success" aria-labelledby="campaign-state-title">
         <div>
-          <p className="eyebrow">Campaign complete</p>
           <h2 id="campaign-state-title">Ready to review</h2>
         </div>
         <p>
@@ -298,7 +293,6 @@ function CampaignStatePanel({ campaign }: { campaign: CampaignDetailResponse }) 
     return (
       <section className="campaign-state campaign-state-error" aria-labelledby="campaign-state-title">
         <div>
-          <p className="eyebrow">Campaign stopped</p>
           <h2 id="campaign-state-title">
             {campaign.error ? humanizeCode(campaign.error.code) : "Generation failed"}
           </h2>
@@ -317,7 +311,6 @@ function CampaignStatePanel({ campaign }: { campaign: CampaignDetailResponse }) 
     return (
       <section className="campaign-state campaign-state-cancelled" aria-labelledby="campaign-state-title">
         <div>
-          <p className="eyebrow">Campaign cancelled</p>
           <h2 id="campaign-state-title">Generation stopped</h2>
         </div>
         <p>The campaign is not complete. Any results finished before cancellation remain available below.</p>
@@ -329,7 +322,6 @@ function CampaignStatePanel({ campaign }: { campaign: CampaignDetailResponse }) 
     return (
       <section className="campaign-state campaign-state-pending" aria-labelledby="campaign-state-title">
         <div>
-          <p className="eyebrow">Cancellation pending</p>
           <h2 id="campaign-state-title">Stopping active work</h2>
         </div>
         <p>Cancellation is being processed. This page will keep checking until the campaign stops.</p>
@@ -371,12 +363,11 @@ function DetailError({
   return (
     <div className="route-state">
       <span className="route-state-mark" aria-hidden="true">404</span>
-      <p className="eyebrow">Campaign library</p>
       <h1>{title}</h1>
       <p>{message}</p>
       <div className="route-state-actions">
         {action}
-        <Link href="/" className="button button-secondary">Return to campaigns</Link>
+        <Link href="/library" className="button button-secondary">Return to library</Link>
       </div>
     </div>
   );

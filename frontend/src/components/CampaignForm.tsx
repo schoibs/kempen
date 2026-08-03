@@ -344,15 +344,7 @@ export function CampaignForm() {
   }
 
   return (
-    <section className="create-section" aria-labelledby="create-campaign-title">
-      <div className="create-heading">
-        <div>
-          <p className="eyebrow">New production</p>
-          <h2 id="create-campaign-title">Create campaign</h2>
-        </div>
-        <p>Pair one product image with a focused brief. Kempen will shape the story and motion.</p>
-      </div>
-
+    <section className="create-section" aria-label="Campaign creation">
       {pending && (
         <div className="notice notice-warning recovery-notice" role="status">
           <div>
@@ -375,8 +367,10 @@ export function CampaignForm() {
 
             <div className="field-group field-wide">
               <div className="field-label-row">
-                <label id="product-image-label" htmlFor="product-image">Product image <span>Required</span></label>
-                <span>JPEG, PNG or WebP · 20 MB max</span>
+                <div className="field-title-copy">
+                  <label id="product-image-label" htmlFor="product-image">Product image <span aria-hidden="true">*</span><span className="sr-only">Required</span></label>
+                  <p className="field-help" id="product-image-help">JPEG, PNG or WebP · 20 MB max</p>
+                </div>
               </div>
 
               {pending ? (
@@ -443,7 +437,10 @@ export function CampaignForm() {
 
             <div className="field-group field-wide">
               <div className="field-label-row">
-                <label htmlFor="campaign-theme">Campaign theme <span>Required</span></label>
+                <div className="field-title-copy">
+                  <label htmlFor="campaign-theme">Campaign theme <span aria-hidden="true">*</span><span className="sr-only">Required</span></label>
+                  <p className="field-help" id="campaign-theme-help">Describe the creative world, energy, or occasion.</p>
+                </div>
                 {theme.length >= 1800 && <span>{MAX_TEXT_LENGTH - theme.length} characters left</span>}
               </div>
               <textarea
@@ -463,13 +460,15 @@ export function CampaignForm() {
                 }
                 aria-invalid={Boolean(fieldErrors.campaign_theme)}
               />
-              <p className="field-help" id="campaign-theme-help">Describe the creative world, energy, or occasion.</p>
               {touched.campaign_theme && fieldErrors.campaign_theme && <p className="field-error" id="campaign-theme-error" role="alert">{fieldErrors.campaign_theme}</p>}
             </div>
 
             <div className="field-group field-wide">
               <div className="field-label-row">
-                <label htmlFor="target-audience">Target audience <span>Required</span></label>
+                <div className="field-title-copy">
+                  <label htmlFor="target-audience">Target audience <span aria-hidden="true">*</span><span className="sr-only">Required</span></label>
+                  <p className="field-help" id="target-audience-help">Name the people this campaign should speak to.</p>
+                </div>
                 {audience.length >= 1800 && <span>{MAX_TEXT_LENGTH - audience.length} characters left</span>}
               </div>
               <textarea
@@ -489,12 +488,11 @@ export function CampaignForm() {
                 }
                 aria-invalid={Boolean(fieldErrors.target_audience)}
               />
-              <p className="field-help" id="target-audience-help">Name the people this campaign should speak to.</p>
               {touched.target_audience && fieldErrors.target_audience && <p className="field-error" id="target-audience-error" role="alert">{fieldErrors.target_audience}</p>}
             </div>
 
             <div className="field-group">
-              <label htmlFor="campaign-duration">Duration <span>Required</span></label>
+              <label htmlFor="campaign-duration">Duration <span aria-hidden="true">*</span><span className="sr-only">Required</span></label>
               <select
                 ref={durationRef}
                 id="campaign-duration"
@@ -517,7 +515,7 @@ export function CampaignForm() {
             </div>
 
             <div className="field-group">
-              <label htmlFor="aspect-ratio">Aspect ratio <span>Required</span></label>
+              <label htmlFor="aspect-ratio">Aspect ratio <span aria-hidden="true">*</span><span className="sr-only">Required</span></label>
               <select
                 ref={aspectRatioRef}
                 id="aspect-ratio"
@@ -542,12 +540,6 @@ export function CampaignForm() {
         </div>
 
         <div className="submission-panel">
-          <div>
-            <p className="eyebrow">Ready when you are</p>
-            <h3>From still image to campaign story.</h3>
-            <p>Your campaign begins as soon as the image is uploaded and verified.</p>
-          </div>
-
           {formError && (
             <div className="form-error" role="alert">
               <strong>Submission paused</strong>
@@ -555,10 +547,6 @@ export function CampaignForm() {
               {formError.requestId && <small>Reference: {formError.requestId}</small>}
             </div>
           )}
-
-          <div className="submission-status" aria-live="polite">
-            {phase ? <><span className="submission-pulse" aria-hidden="true" />{PHASE_LABELS[phase]}</> : <span>Four secure steps, then generation begins.</span>}
-          </div>
 
           <button
             className="button button-primary submit-button"
