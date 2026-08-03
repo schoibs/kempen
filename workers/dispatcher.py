@@ -45,9 +45,8 @@ class Dispatcher:
                     raise
             else:
                 logger.info(
-                    "Dispatcher heartbeat: environment=%s fake_provider_mode=%s repaired=%s published=%s",
+                    "Dispatcher heartbeat: environment=%s repaired=%s published=%s",
                     self.settings.environment,
-                    self.settings.fake_provider_mode,
                     repaired,
                     published,
                 )
@@ -118,14 +117,18 @@ class Dispatcher:
                         or_(
                             CampaignStageRun.status == StageStatus.PENDING.value,
                             (
-                                CampaignStageRun.status == StageStatus.WAITING_EXTERNAL.value,
-                                (CampaignStageRun.next_poll_at.is_(None))
-                                | (CampaignStageRun.next_poll_at <= now),
+                                CampaignStageRun.status == StageStatus.WAITING_EXTERNAL.value
+                            )
+                            & (
+                                CampaignStageRun.next_poll_at.is_(None)
+                                | (CampaignStageRun.next_poll_at <= now)
                             ),
                             (
-                                CampaignStageRun.status == StageStatus.RUNNING.value,
-                                (CampaignStageRun.lease_expires_at.is_(None))
-                                | (CampaignStageRun.lease_expires_at <= now),
+                                CampaignStageRun.status == StageStatus.RUNNING.value
+                            )
+                            & (
+                                CampaignStageRun.lease_expires_at.is_(None)
+                                | (CampaignStageRun.lease_expires_at <= now)
                             ),
                         ),
                     )

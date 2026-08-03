@@ -29,22 +29,41 @@ class S3ObjectStorage(ObjectStorage):
         self,
         *,
         endpoint_url: str,
+        presign_endpoint_url: str | None = None,
         region_name: str,
         bucket: str,
         access_key: str,
         secret_key: str,
         client: Any | None = None,
+        presign_client: Any | None = None,
     ) -> None:
         self.bucket = bucket
         self.region_name = region_name
+        client_config = Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "path"},
+        )
         self._client = client or boto3.client(
             "s3",
             endpoint_url=endpoint_url,
             region_name=region_name,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+            config=client_config,
         )
+        if presign_client is not None:
+            self._presign_client = presign_client
+        elif presign_endpoint_url is None or presign_endpoint_url == endpoint_url:
+            self._presign_client = self._client
+        else:
+            self._presign_client = boto3.client(
+                "s3",
+                endpoint_url=presign_endpoint_url,
+                region_name=region_name,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=client_config,
+            )
 
     def ensure_bucket(self) -> None:
         try:
@@ -85,7 +104,7 @@ class S3ObjectStorage(ObjectStorage):
             parameters["ChecksumSHA256"] = checksum_base64
             headers["x-amz-checksum-sha256"] = checksum_base64
         try:
-            url = self._client.generate_presigned_url(
+            url = self._presign_client.generate_presigned_url(
                 "put_object",
                 Params=parameters,
                 ExpiresIn=expires_in_sec,
@@ -112,7 +131,7 @@ class S3ObjectStorage(ObjectStorage):
 
     def create_download_url(self, *, object_key: str, expires_in_sec: int) -> str:
         try:
-            return self._client.generate_presigned_url(
+            return self._presign_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.bucket, "Key": object_key},
                 ExpiresIn=expires_in_sec,
@@ -217,6 +236,7 @@ def get_object_storage() -> S3ObjectStorage:
     settings = get_settings()
     return S3ObjectStorage(
         endpoint_url=settings.object_storage_endpoint,
+        presign_endpoint_url=settings.object_storage_public_endpoint,
         region_name=settings.object_storage_region,
         bucket=settings.object_storage_bucket,
         access_key=settings.object_storage_access_key.get_secret_value(),

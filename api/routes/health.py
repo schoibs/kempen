@@ -74,7 +74,6 @@ def readiness() -> JSONResponse:
             "status": "ready" if is_ready else "not_ready",
             "service": settings.app_name,
             "environment": settings.environment,
-            "fake_provider_mode": settings.fake_provider_mode,
             "checks": checks,
         },
     )

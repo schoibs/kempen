@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import json
-import shutil
-import time
-import uuid
 
 from pathlib import Path
 from typing import Any
 
-from app_config import get_settings
 from campaign_agents import NarrativeStrategistAgent, ProductAnalysisAgent
 from services import StoryboardGeneratorService, VideoGeneratorService
 
@@ -21,17 +17,11 @@ class CampaignStageOperations:
     def __init__(
         self,
         *,
-        fake_provider_mode: bool | None = None,
         product_agent: ProductAnalysisAgent | None = None,
         narrative_agent: NarrativeStrategistAgent | None = None,
         storyboard_service: StoryboardGeneratorService | None = None,
         video_service: VideoGeneratorService | None = None,
     ) -> None:
-        self.fake_provider_mode = (
-            get_settings().fake_provider_mode
-            if fake_provider_mode is None
-            else fake_provider_mode
-        )
         self._product_agent = product_agent
         self._narrative_agent = narrative_agent
         self._storyboard_service = storyboard_service
@@ -39,16 +29,6 @@ class CampaignStageOperations:
 
     def analyze_product(self, *, product_image_path: str | Path) -> dict[str, Any]:
         image_path = self._require_file(product_image_path, "Product image")
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("product_analysis")
-            return {
-                "product_name": image_path.stem.replace("_", " ").title(),
-                "category": "Test product",
-                "primary_colors": {"name": "Neutral", "hex": "#808080"},
-                "visible_facts": ["Fake provider inspected the supplied product image."],
-                "additional_facts": ["Fake provider mode does not perform web research."],
-            }
-
         return self._json_object(
             self._product_analysis_agent().run(product_image_path=image_path),
             "Product analysis",
@@ -61,16 +41,6 @@ class CampaignStageOperations:
         campaign_input: CampaignInput,
     ) -> dict[str, Any]:
         product_analysis = self._json_object(product_analysis, "Product analysis")
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("narrative_strategy")
-            return {
-                "concept": f"A concise campaign for {product_analysis['product_name']}.",
-                "story_premise": campaign_input.campaign_theme,
-                "hook": "The product enters the frame.",
-                "conflict": "The audience needs a compelling reason to engage.",
-                "tone": ["clear", "upbeat"],
-            }
-
         return self._json_object(
             self._narrative_strategist_agent().run(
                 product_analysis=product_analysis,
@@ -92,12 +62,6 @@ class CampaignStageOperations:
     ) -> dict[str, Any]:
         image_path = self._require_file(product_image_path, "Product image")
         destination_path = Path(output_path)
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("storyboard_generation")
-            destination_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(image_path, destination_path)
-            return {"image_path": str(destination_path)}
-
         output = self._storyboard_generator_service().run(
             product_image_path=image_path,
             product_analysis=self._json_object(product_analysis, "Product analysis"),
@@ -115,15 +79,6 @@ class CampaignStageOperations:
         product_analysis: dict[str, Any],
         campaign_input: CampaignInput,
     ) -> dict[str, Any]:
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("video_submission")
-            self._require_file(storyboard_image_path, "Storyboard image")
-            self._require_file(product_image_path, "Product image")
-            return {
-                "request_id": f"fake_{uuid.uuid4().hex}",
-                "provider": "fake",
-            }
-
         output = self._video_generator_service().submit(
             storyboard_image_path=storyboard_image_path,
             product_image_path=product_image_path,
@@ -136,14 +91,6 @@ class CampaignStageOperations:
         )
 
     def poll_video(self, *, request_id: str) -> dict[str, Any]:
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("video_poll")
-            return {
-                "request_id": request_id,
-                "status": "completed",
-                "provider_metadata": {},
-            }
-
         output = self._video_generator_service().poll(request_id=request_id)
         return self._json_object(
             {
@@ -161,17 +108,6 @@ class CampaignStageOperations:
         output_path: str | Path,
     ) -> dict[str, Any]:
         destination_path = Path(output_path)
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("video_finalize")
-            destination_path.parent.mkdir(parents=True, exist_ok=True)
-            destination_path.write_bytes(b"fake campaign video\n")
-            return {
-                "video_path": str(destination_path),
-                "video_url": f"fake://video/{request_id}",
-                "seed": None,
-                "request_id": request_id,
-            }
-
         output = self._video_generator_service().finalize(
             request_id=request_id,
             output_path=destination_path,
@@ -188,9 +124,6 @@ class CampaignStageOperations:
         )
 
     def cancel_video(self, *, request_id: str) -> None:
-        if self.fake_provider_mode:
-            self._simulate_fake_provider("video_cancel")
-            return
         self._video_generator_service().cancel(request_id=request_id)
 
     def _product_analysis_agent(self) -> ProductAnalysisAgent:
@@ -212,15 +145,6 @@ class CampaignStageOperations:
         if self._video_service is None:
             self._video_service = VideoGeneratorService()
         return self._video_service
-
-    def _simulate_fake_provider(self, stage: str) -> None:
-        """Make local asynchronous behaviour observable without provider calls."""
-
-        settings = get_settings()
-        if settings.fake_provider_latency_sec:
-            time.sleep(settings.fake_provider_latency_sec)
-        if settings.fake_provider_failure_stage == stage:
-            raise RuntimeError(f"Fake provider configured to fail at {stage}.")
 
     @staticmethod
     def _require_file(path: str | Path, label: str) -> Path:

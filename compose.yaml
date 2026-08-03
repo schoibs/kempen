@@ -1,5 +1,22 @@
 name: campaign-generator
 
+x-backend-environment: &backend-environment
+  CAMPAIGN_DATABASE_URL: postgresql+psycopg://campaign:campaign@postgres:5432/campaign
+  CAMPAIGN_REDIS_URL: redis://redis:6379/0
+  CAMPAIGN_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+  CAMPAIGN_OBJECT_STORAGE_PUBLIC_ENDPOINT: ${CAMPAIGN_OBJECT_STORAGE_PUBLIC_ENDPOINT:-http://localhost:9000}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env before starting Compose}
+  TINYFISH_API_KEY: ${TINYFISH_API_KEY:?Set TINYFISH_API_KEY in .env before starting Compose}
+  FAL_KEY: ${FAL_KEY:?Set FAL_KEY in .env before starting Compose}
+
+x-backend-service: &backend-service
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: campaign-generator-backend:local
+  environment: *backend-environment
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:17.5-alpine
@@ -34,6 +51,7 @@ services:
     image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CAMPAIGN_FRONTEND_ORIGIN:-http://localhost:3000}
       MINIO_ROOT_USER: campaign-local
       MINIO_ROOT_PASSWORD: campaign-local-secret
     ports:
@@ -46,6 +64,113 @@ services:
       retries: 10
     volumes:
       - campaign-minio:/data
+
+  migrate:
+    <<: *backend-service
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend-service
+    command: ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker-planning:
+    <<: *backend-service
+    command:
+      - celery
+      - -A
+      - workers.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=planning
+      - --concurrency=2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker-media:
+    <<: *backend-service
+    command:
+      - celery
+      - -A
+      - workers.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=media
+      - --concurrency=1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  dispatcher:
+    <<: *backend-service
+    command: ["python", "-m", "workers.dispatcher"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:8000
+        NEXT_PUBLIC_DEPLOYMENT_LABEL: ${CAMPAIGN_DEPLOYMENT_LABEL:-Local}
+    image: campaign-generator-frontend:local
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://localhost:3000/healthz').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   campaign-minio:
