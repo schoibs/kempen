@@ -21,10 +21,7 @@ class Settings(BaseSettings):
     app_name: str = "Kempen Campaign API"
     environment: Literal["local", "test", "staging", "production"] = "local"
     log_level: str = "INFO"
-    fake_provider_mode: bool = True
     campaign_creation_enabled: bool = True
-    fake_provider_latency_sec: float = Field(default=0.0, ge=0, le=60)
-    fake_provider_failure_stage: str | None = None
 
     database_url: str = "postgresql+psycopg://campaign:campaign@localhost:5432/campaign"
     database_pool_size: int = Field(default=5, ge=1, le=100)
@@ -97,27 +94,6 @@ class Settings(BaseSettings):
         validation_alias="FAL_KEY",
     )
 
-    @field_validator("fake_provider_failure_stage")
-    @classmethod
-    def validate_fake_provider_failure_stage(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        allowed = {
-            "product_analysis",
-            "narrative_strategy",
-            "storyboard_generation",
-            "video_submission",
-            "video_poll",
-            "video_finalize",
-            "video_cancel",
-        }
-        if value not in allowed:
-            raise ValueError(
-                "fake_provider_failure_stage must be one of: "
-                + ", ".join(sorted(allowed))
-            )
-        return value
-
     @field_validator("object_storage_public_endpoint")
     @classmethod
     def validate_object_storage_public_endpoint(cls, value: str | None) -> str | None:
@@ -136,20 +112,17 @@ class Settings(BaseSettings):
             raise ValueError("retry_backoff_min_sec must not exceed retry_backoff_max_sec")
         if self.video_poll_min_sec > self.video_poll_max_sec:
             raise ValueError("video_poll_min_sec must not exceed video_poll_max_sec")
-        if not self.fake_provider_mode:
-            missing = [
-                name
-                for name, value in (
-                    ("OPENAI_API_KEY", self.openai_api_key),
-                    ("TINYFISH_API_KEY", self.tinyfish_api_key),
-                    ("FAL_KEY", self.fal_key),
-                )
-                if value is None
-            ]
-            if missing:
-                raise ValueError(
-                    "Real-provider mode requires: " + ", ".join(missing)
-                )
+        missing = [
+            name
+            for name, value in (
+                ("OPENAI_API_KEY", self.openai_api_key),
+                ("TINYFISH_API_KEY", self.tinyfish_api_key),
+                ("FAL_KEY", self.fal_key),
+            )
+            if value is None or not value.get_secret_value().strip()
+        ]
+        if missing:
+            raise ValueError("Provider credentials are required: " + ", ".join(missing))
 
         if self.auth_enabled:
             missing = [

@@ -5,10 +5,9 @@ x-backend-environment: &backend-environment
   CAMPAIGN_REDIS_URL: redis://redis:6379/0
   CAMPAIGN_OBJECT_STORAGE_ENDPOINT: http://minio:9000
   CAMPAIGN_OBJECT_STORAGE_PUBLIC_ENDPOINT: ${CAMPAIGN_OBJECT_STORAGE_PUBLIC_ENDPOINT:-http://localhost:9000}
-  CAMPAIGN_FAKE_PROVIDER_MODE: ${CAMPAIGN_FAKE_PROVIDER_MODE:-true}
-  OPENAI_API_KEY:
-  TINYFISH_API_KEY:
-  FAL_KEY:
+  OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env before starting Compose}
+  TINYFISH_API_KEY: ${TINYFISH_API_KEY:?Set TINYFISH_API_KEY in .env before starting Compose}
+  FAL_KEY: ${FAL_KEY:?Set FAL_KEY in .env before starting Compose}
 
 x-backend-service: &backend-service
   build:
@@ -155,7 +154,6 @@ services:
       args:
         API_INTERNAL_URL: http://api:8000
         NEXT_PUBLIC_DEPLOYMENT_LABEL: ${CAMPAIGN_DEPLOYMENT_LABEL:-Local}
-        NEXT_PUBLIC_FAKE_PROVIDER_MODE: ${CAMPAIGN_FAKE_PROVIDER_MODE:-true}
     image: campaign-generator-frontend:local
     ports:
       - "3000:3000"

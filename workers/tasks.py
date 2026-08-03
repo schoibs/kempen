@@ -61,7 +61,6 @@ def healthcheck() -> dict[str, Any]:
     return {
         "status": "ok",
         "environment": settings.environment,
-        "fake_provider_mode": settings.fake_provider_mode,
     }
 
 

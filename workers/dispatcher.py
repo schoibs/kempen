@@ -45,9 +45,8 @@ class Dispatcher:
                     raise
             else:
                 logger.info(
-                    "Dispatcher heartbeat: environment=%s fake_provider_mode=%s repaired=%s published=%s",
+                    "Dispatcher heartbeat: environment=%s repaired=%s published=%s",
                     self.settings.environment,
-                    self.settings.fake_provider_mode,
                     repaired,
                     published,
                 )
