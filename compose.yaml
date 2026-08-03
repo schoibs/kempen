@@ -1,4 +1,4 @@
-name: campaign-generator
+name: kempen
 
 x-backend-environment: &backend-environment
   CAMPAIGN_DATABASE_URL: postgresql+psycopg://campaign:campaign@postgres:5432/campaign
@@ -13,7 +13,7 @@ x-backend-service: &backend-service
   build:
     context: .
     dockerfile: Dockerfile
-  image: campaign-generator-backend:local
+  image: kempen-backend:local
   environment: *backend-environment
   restart: unless-stopped
 
@@ -154,7 +154,7 @@ services:
       args:
         API_INTERNAL_URL: http://api:8000
         NEXT_PUBLIC_DEPLOYMENT_LABEL: ${CAMPAIGN_DEPLOYMENT_LABEL:-Local}
-    image: campaign-generator-frontend:local
+    image: kempen-frontend:local
     ports:
       - "3000:3000"
     healthcheck:
